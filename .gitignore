@@ -1,0 +1,15 @@
+node_modules/
+.DS_Store
+.env
+.env.*
+
+# Raw on-chain extracts are large and live in a GitHub release asset, not git.
+*.csv
+transfers.csv
+prices.csv
+dune/out/
+
+# Local build/tmp
+/tmp/
+dist/
+*.log

@@ -1,0 +1,11 @@
+{
+  "name": "pepecoin-terminal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "An open, reproducible on-chain analytics terminal for pepecoin (PEPECOIN) — a clone of the SPX6900 terminal's data layer.",
+  "scripts": {
+    "test": "node --test",
+    "onchain": "node scripts/build-onchain-local.mjs"
+  }
+}
