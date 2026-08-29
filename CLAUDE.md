@@ -86,14 +86,29 @@ One cheap extract → local compute, **$0 / zero paid quota**:
   Actions (use `github.token`); can't be exercised from the sandbox.
 - **Tests:** `node --test` → 38/38 (FIFO engine + merge helpers).
 
-### 4b. Site — ✅ FULL TERMINAL BUILT (18 charts, gallery, routing)
-- **Vite + React** (`npm run dev` / `build` / `preview`). `index.html` → `src/main.jsx` → `src/App.jsx`.
-  `src/terminal.css` = dark/mono/green aesthetic (tokens at top). `src/data.js` = cached `useJson` loader +
-  format helpers. `src/charts-catalog.js` = **single source of truth** (5 families, 18 charts). `src/charts.jsx`
-  = the components + `chartEl(id)` switch + gallery sparklines.
-- **Structure (SPX-style):** query-string router in App.jsx — **Home** (KPI strip + lead + 4 featured charts),
-  **Charts gallery** `?view=charts` (grouped tiles w/ live sparklines), **dedicated chart page** `?chart=<id>`.
-  Add a chart = 1 catalog entry + 1 component + 1 case in `chartEl()`.
+### 4b. Site — ✅ "WINDOWS-XP DESKTOP" SHELL (owner chose this aesthetic 2026-08-29)
+- **Vite + React** (`npm run dev` / `build` / `preview`). Two stylesheets: `src/terminal.css` (chart-internal
+  tokens/classes — `.card`, `.tip`, `.dtable`, recharts axis) + **`src/xp.css`** (the desktop OS theme). Fonts
+  via Google Fonts in `index.html`: **VT323** (boot/Start/clock retro), **Inter** (UI), **IBM Plex Mono** (data).
+  NO JetBrains (owner rule). Strong **pepe green** identity.
+- **`src/App.jsx` = a green Windows-XP desktop OS**: a BIOS boot screen → Enter → a green wallpaper (CRT
+  scanlines) with **desktop icons**, draggable/resizable **chart "windows"** (titlebar + min/max/close, z-order
+  focus), a bottom **taskbar** with a **🐸 start** button (the nav — a grouped Start menu = "the hamburger"),
+  open-window buttons, and a tray with **live price + clock**. Mobile: windows go full-screen (one at a time),
+  Start menu fills the screen, no dragging. Verified desktop + mobile, 0 h-overflow, no console errors. ⚠ Google
+  Fonts are blocked in the sandbox so screenshots show fallback fonts — they load fine on the real Vercel deploy.
+- **`src/charts.jsx`** = the 18 chart components + `winContent(id)` (charts + special panels: **Overview**,
+  **Who's Buying** (whale 30d accumulate/distribute from whales.json), **About**). `src/charts-catalog.js` =
+  single source of truth (5 families, 18 charts) driving the Start menu + icons. Add a chart = 1 catalog entry
+  + 1 component + 1 case in `chartEl()`; add an icon in `ICON` (App.jsx). The old query-string gallery/router
+  was replaced by the desktop shell.
+- **⭐ "WHO'S BUYING" — key finding 2026-08-29 (price +3.4× in 13 days, $0.070→$0.235):** analysis of the raw
+  transfers over the rally window showed **broad, organic accumulation** — net +2.99M tokens absorbed by
+  holders; **41% fresh demand** (218 brand-new + 90 reactivated wallets) vs existing adding; coins came **out of
+  the Uniswap pool** (−3M LP), CEX flat; top-10 buyers = 59% (moderately broad). Leans genuine, not a lone-whale
+  pump. Script pattern: import `EXCLUDE`/`EXCLUDE_LABELS` from the engine, snapshot balances at window start vs
+  now + first-seen ts → classify new/reactivated/adding/selling. **🔲 Turn this into a committed daily feed +
+  a richer "Who's Buying" window** (currently the window shows the whale 30d flow proxy).
 - **The 18 charts** (all from committed feeds — `onchain.json` / `urpd.json` / `whales.json` / `entities.json`):
   Valuation (realized price & floor, MVRV, NUPL, supply-in-profit) · Conviction (HODL waves, LTH/STH, holder
   count, wealth tiers) · Cost basis (URPD, URPD-by-age) · Concentration (top-N, Gini, whale table, cluster

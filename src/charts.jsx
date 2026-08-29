@@ -472,3 +472,99 @@ export function chartEl(id) {
   const Comp = REG[id];
   return Comp ? <Comp /> : <div className="cstate err">unknown chart: {id}</div>;
 }
+
+// ══════════════════════════ DESKTOP "APP" WINDOWS ══════════════════════════
+import { last as _last } from "./data.js";
+
+export function OverviewPanel() {
+  const feed = useOnchain();
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading…</div>;
+  const c = _last(feed.data);
+  const K = [
+    ["price", fmtUsd(c.spot), "latest daily close", c.mvrv < 1 ? "" : ""],
+    ["realized cost basis", fmtUsd(c.rp), "avg held-coin cost", "good"],
+    ["MVRV", fmtX(c.mvrv), c.mvrv < 1 ? "holders underwater" : "above cost", c.mvrv < 1 ? "warn" : "good"],
+    ["supply in profit", fmtPct(c.sip), "of held supply", ""],
+    ["holders", fmtNum(c.holders), "ETH wallets", ""],
+    ["held 1y+", fmtPct(c.age[4]), "diamond base", "good"],
+    ["top-100", fmtPct(c.top100), "concentration", ""],
+    ["held supply", fmtTok(c.heldTokens), "tokens, ex-infra", ""],
+  ];
+  return (
+    <div>
+      <div className="ov-kpis">
+        {K.map(([k, v, n, cls]) => (
+          <div className="ov-kpi" key={k}><div className="k">{k}</div><div className={"v " + cls}>{v}</div><div className="n">{n}</div></div>
+        ))}
+      </div>
+      <p className="ov-lead">An open, reproducible on-chain read on <b>pepecoin</b> — every number reconstructed
+        from the public Ethereum transfer history with a local FIFO cost-basis engine. Double-click an icon,
+        or hit <b>start</b>, to open a chart. Data as of {c.d}.</p>
+      <RealizedPriceChart />
+    </div>
+  );
+}
+
+export function BuyersPanel() {
+  const feed = useJson("whales.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading…</div>;
+  const ws = feed.data.wallets;
+  const add = ws.filter((w) => w.d30 > 0).sort((a, b) => b.d30 - a.d30);
+  const shed = ws.filter((w) => w.d30 < 0).sort((a, b) => a.d30 - b.d30);
+  const sum = (a) => a.reduce((s, w) => s + Math.abs(w.d30), 0);
+  const net = sum(add) - sum(shed);
+  const Row = ({ w, sign }) => (
+    <tr>
+      <td><a href={`https://etherscan.io/address/${w.a}`} target="_blank" rel="noreferrer">{shortAddr(w.a)}</a></td>
+      <td className="r">{fmtTok(w.bal)}</td>
+      <td className={"r " + (sign > 0 ? "pos" : "neg")}>{sign > 0 ? "+" : "−"}{fmtTok(Math.abs(w.d30))}</td>
+    </tr>
+  );
+  return (
+    <div>
+      <p className="q">Whales (≥100k) accumulating vs distributing over the last 30 days — is big money stepping in or stepping out?</p>
+      <div className="ov-kpis buyers">
+        <div className="ov-kpi"><div className="k">accumulating</div><div className="v good">{add.length}</div><div className="n">whales, +{fmtTok(sum(add))}</div></div>
+        <div className="ov-kpi"><div className="k">distributing</div><div className="v warn">{shed.length}</div><div className="n">whales, −{fmtTok(sum(shed))}</div></div>
+        <div className="ov-kpi"><div className="k">net 30d</div><div className={"v " + (net >= 0 ? "good" : "warn")}>{(net >= 0 ? "+" : "−") + fmtTok(Math.abs(net))}</div><div className="n">tokens</div></div>
+      </div>
+      <div className="buy-cols">
+        <div>
+          <div className="buy-h good">▲ accumulating</div>
+          <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">balance</th><th className="r">30d</th></tr></thead>
+            <tbody>{add.slice(0, 12).map((w) => <Row key={w.a} w={w} sign={1} />)}</tbody></table></div>
+        </div>
+        <div>
+          <div className="buy-h warn">▼ distributing</div>
+          <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">balance</th><th className="r">30d</th></tr></thead>
+            <tbody>{shed.slice(0, 12).map((w) => <Row key={w.a} w={w} sign={-1} />)}</tbody></table></div>
+        </div>
+      </div>
+      <p className="foot">Whale = wallet ≥100k tokens (infrastructure excluded). Net flow over 30 days. A deeper day-by-day "who's buying the rally" feed (new vs returning buyers) is coming next.</p>
+    </div>
+  );
+}
+
+export function AboutPanel() {
+  return (
+    <div className="about">
+      <p><b>Pepecoin Terminal</b> is an open, reproducible on-chain valuation desk for pepecoin
+        (<code>0xA9E8…9489A</code>, Ethereum, 18 decimals).</p>
+      <p>Every number is reconstructed from the <b>public Ethereum transfer history</b> with a local FIFO
+        cost-basis engine — no black box, no paid data. Balances, cost basis and holding age are replayed
+        wallet-by-wallet; infrastructure (pools, CEX, burn) is excluded from holder metrics.</p>
+      <p>On-chain reads are <b>valuation / position</b> statements, never buy or sell signals. Concentration
+        figures are an upper bound while the infrastructure exclude list is verified.</p>
+      <p className="foot">Data refreshes daily from public RPC — zero cost, no third-party dependency.</p>
+    </div>
+  );
+}
+
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel };
+export function winContent(id) {
+  const P = PANELS[id];
+  if (P) return <P />;
+  return chartEl(id);
+}

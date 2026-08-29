@@ -9,7 +9,8 @@
   --accent: #4ade80;      /* pepe green */
   --accent2: #22d3ee;     /* long-held cyan */
   --warn: #fb7185;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --ui: "Inter", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
