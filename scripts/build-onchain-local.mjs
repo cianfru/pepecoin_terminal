@@ -54,15 +54,15 @@ export const EXCLUDE_LABELS = {
   "0x9008d19f58aabd9ed0d60971565aa8510560ab41": { name: "CoW Protocol: GPv2Settlement", kind: "mm" },
   "0x111111125421ca6dc452d289314280a0f8842a65": { name: "1inch v6: Aggregation Router", kind: "mm" },
   "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae": { name: "LI.FI: Diamond", kind: "mm" },
-  // 🔲 OWNER TO VERIFY (biggest concentration impact) — the exchange-candidate detector flags these as high-throughput,
-  //    many-counterparty wallets that look like infrastructure, NOT holders. Confirm each on Etherscan/Bubblemaps, then add
-  //    with the right kind (cex/lp/mm). The top one is the #1 "holder" so it materially moves top-10/top-100 concentration:
-  //      0xddd23787a6b80a794d952f5fb036d0b31a8e6aff  — 4.75M "holder", 811 counterparties, big 30d outflow → likely CEX
+  // ── THE MAIN LP — owner-confirmed 2026-08-29. It was surfacing as the #1 "holder" (4.75M) because it holds the pool's
+  //    pepecoin reserve; the 811 counterparties + big two-way throughput are swaps, not a whale. Excluding it (kind:"lp" =
+  //    liquid/float) dissolves the fused 303-wallet super-cluster and drops the raw concentration to the real number.
+  "0xddd23787a6b80a794d952f5fb036d0b31a8e6aff": { name: "Uniswap V2: pepecoin", kind: "lp" },
+  // 🔲 OWNER TO VERIFY (lower impact) — exchange-candidate detector hits that look like infra, not holders. Confirm on
+  //    Etherscan/Bubblemaps, then add with the right kind (cex/lp/mm):
   //      0x74de5d4fcbf63e00296fd95d33236b9794016631  — likely MetaMask Swap Router (router → kind:"mm")
   //      0xafd18a20aff41b6da320773c6aaf796477728ceb  — high two-way throughput; verify
   //      0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f  — high two-way throughput; verify
-  // 🔲 ALSO STILL TODO: the Uniswap V2/V3 pepecoin LP pool(s) (kind:"lp"). Until this list firms up, concentration /
-  //    holder metrics read as an UPPER BOUND on real concentration — say so on any surface that shows them.
 };
 
 // The set the FIFO engine excludes from holder reconstruction — DERIVED from EXCLUDE_LABELS so

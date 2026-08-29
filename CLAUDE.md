@@ -67,11 +67,12 @@ repo's CLAUDE.md works). Read it first.
 - **Added 2026-08-29 (unambiguous public infra, from the engine's exchange-candidate detector):** CoW
   Protocol GPv2Settlement, 1inch v6, LI.FI Diamond (kind:"mm"), + Gate.io `0x0d07…` (cross-ref from SPX).
   Effect on top-line ~nil (routers hold ~0 at rest) but they were fusing the 303-wallet super-cluster.
-- **🔲 OWNER TO VERIFY on Etherscan/Bubblemaps (materially moves concentration):**
-  `0xddd23787a6b80a794d952f5fb036d0b31a8e6aff` — the #1 "holder" at 4.75M but 811 counterparties + big 30d
-  outflow → almost certainly a CEX (dissolves the 303-cluster + trims top-100 when excluded). Also verify
-  `0x74de5d4f…` (likely MetaMask Swap Router → mm), `0xafd18a20…`, `0xb92fe925…`, and find the Uniswap
-  V2/V3 pepecoin **LP pool(s)** (kind:"lp"). All flagged inline in the engine's EXCLUDE_LABELS block.
+- **✅ OWNER-CONFIRMED 2026-08-29:** `0xddd23787a6b80a794d952f5fb036d0b31a8e6aff` = the **Uniswap V2 pepecoin
+  LP pool** (not a CEX — it holds the pool reserve, hence the #1-"holder" look + 811 swap counterparties).
+  Excluded kind:"lp"; top-100 concentration 59.5% → 57.8%.
+- **🔲 STILL TO VERIFY (lower impact, flagged inline in EXCLUDE_LABELS):** `0x74de5d4f…` (likely MetaMask Swap
+  Router → mm), `0xafd18a20…`, `0xb92fe925…`. A guarded 303-wallet cluster persists (fused via one of these);
+  the engine flags it, so it's already excluded from trusted concentration.
 - The engine's `EXCLUDE_LABELS` map is the ONE piece of real token-specific research. It removes
   infrastructure (pools / bridge / CEX / burn) from the holder reconstruction. **Getting it wrong
   OVERSTATES concentration** — the exact dishonesty this project guards against — so **never guess an
