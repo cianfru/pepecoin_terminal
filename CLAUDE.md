@@ -86,13 +86,20 @@ One cheap extract → local compute, **$0 / zero paid quota**:
   Actions (use `github.token`); can't be exercised from the sandbox.
 - **Tests:** `node --test` → 38/38 (FIFO engine + merge helpers).
 
-### 4b. Site — ✅ MVP BUILT
+### 4b. Site — ✅ FULL TERMINAL BUILT (18 charts, gallery, routing)
 - **Vite + React** (`npm run dev` / `build` / `preview`). `index.html` → `src/main.jsx` → `src/App.jsx`.
-  `src/terminal.css` = dark/mono/green terminal aesthetic (design tokens at the top). `src/data.js` fetches
-  `onchain.json` (served from `public/`) + format helpers. `src/charts.jsx` = the recharts components.
-- **Live now:** a KPI strip (price · realized cost basis · MVRV · supply-in-profit · holders · 1y+ ·
-  top-100 · held supply) + 5 charts — **Realized price & floor**, **MVRV**, **Supply in profit**, **HODL
-  waves**, **Concentration** — each with a plain-language question + a method/caveat footer (honesty rail).
+  `src/terminal.css` = dark/mono/green aesthetic (tokens at top). `src/data.js` = cached `useJson` loader +
+  format helpers. `src/charts-catalog.js` = **single source of truth** (5 families, 18 charts). `src/charts.jsx`
+  = the components + `chartEl(id)` switch + gallery sparklines.
+- **Structure (SPX-style):** query-string router in App.jsx — **Home** (KPI strip + lead + 4 featured charts),
+  **Charts gallery** `?view=charts` (grouped tiles w/ live sparklines), **dedicated chart page** `?chart=<id>`.
+  Add a chart = 1 catalog entry + 1 component + 1 case in `chartEl()`.
+- **The 18 charts** (all from committed feeds — `onchain.json` / `urpd.json` / `whales.json` / `entities.json`):
+  Valuation (realized price & floor, MVRV, NUPL, supply-in-profit) · Conviction (HODL waves, LTH/STH, holder
+  count, wealth tiers) · Cost basis (URPD, URPD-by-age) · Concentration (top-N, Gini, whale table, cluster
+  table) · Behaviour (SOPR, NRPL, liveliness, tradable supply). **Only ratio / token-bracket metrics are
+  surfaced** — nothing depends on an unverified decimals assumption. Each has a plain-language question + a
+  method/caveat footer (honesty rail).
 - **⚠ recharts lesson:** `isAnimationActive={false}` on every Line/Area — a data terminal shouldn't
   re-animate on load, and mid-animation screenshots clip all series at the same x (the tell). Keep it off.
 - **Verify renders with a real browser, not just the build:** `/opt/pw-browsers/chromium-1194/chrome-linux/
@@ -148,10 +155,14 @@ Everything below already exists, proven, in the SPX repo — porting is mostly r
 **Judge each on "is it a real, interesting, honest finding for pepecoin," not "is it too techy"** (SPX
 retired the "techy doesn't land" rule). Keep the plain-language `<Explain>`/subtitle gloss on techy charts.
 
-**A. Finish the site's core charts (next):** URPD (cost-basis histogram, live spot line), Liveliness,
-NRPL, SOPR, LTH/STH, cohort survival ("who's still here"), cost-basis-by-cohort, exit-flow ("how holders
-left"), CEX-flow + venue split, a whales list. All read `onchain.json` / companion feeds already emitted.
-Add routing/gallery (SPX uses `?chart=<id>` + a catalog) so it's not one long scroll.
+**A. ✅ DONE — the core 2D suite (18 charts) + gallery/routing shipped & live.** Still to add, and the ONE
+thing that needs new BUILDERS (not just a component): **"how holders left" (exit-flow)** and **cohort
+survival ("who's still here")** + cost-basis-by-cohort. The raw `transfers.csv` is available locally to run
+them. Port `build-exit-flow.mjs` + `build-cohort-survival.mjs` (+ `build-city-timeline.mjs` which
+cohort-survival depends on) + `build-smart-money.mjs` from the SPX repo (`/home/user/The_Terminal/scripts/`),
+rescale the SPX 5,000-token residency bar to pepecoin's supply, run against `transfers.csv` + `prices.csv`,
+emit `public/exit-flow.json` / `cohort-survival.json` / `smart-money.json`, wire them into `onchain.yml`, add
+the chart components + catalog entries. Also a Methods page + a CEX-flow chart once the exclude list grows.
 
 **B. Valuation layer (the hero):** the **valuation composite** — a 0–1 oscillator over history, independent
 axes (valuation / trend / relative / sentiment), percentile-ranked, weights published on a Methods page
