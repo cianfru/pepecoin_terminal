@@ -82,7 +82,11 @@ jobs:
         continue-on-error: true
         run: node scripts/detect-contracts.mjs
 
-      - name: Re-fold ETH funding + contract detection into clusters and the market-buy split
+      - name: Label contracts (Blockscout, keyless — router / smart-account / MM / vault)
+        continue-on-error: true
+        run: node scripts/label-contracts.mjs
+
+      - name: Re-fold ETH funding + contract detection/labels into clusters, market-buy split, rally
         run: node scripts/build-smart-money.mjs --transfers=transfers.csv --prices=prices.csv
 
       - name: Upload grown archive (release asset)
@@ -102,7 +106,8 @@ jobs:
           git add public/onchain.json public/urpd.json public/whales.json public/entities.json \
                   public/cex-sankey.json public/self-moves.json public/urpd-history.json \
                   public/buyer-flow.json public/exit-flow.json public/survival.json public/smart-money.json \
-                  public/price-series.json public/eth-funding.json public/contract-types.json prices.csv
+                  public/price-series.json public/eth-funding.json public/contract-types.json \
+                  public/contract-labels.json prices.csv
           if git diff --cached --quiet; then
             echo "no data changes"
           else

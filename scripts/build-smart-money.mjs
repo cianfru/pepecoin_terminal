@@ -77,6 +77,8 @@ async function main() {
   //    WALLET transfer. Counting contract withdrawals as buys inflated the "reaccumulation" read (owner caught this).
   let contractCache = {};
   try { contractCache = JSON.parse(await readFile("public/contract-types.json", "utf8")).addrs || {}; } catch { contractCache = {}; }
+  let ctrLabels = {};
+  try { ctrLabels = JSON.parse(await readFile("public/contract-labels.json", "utf8")).addrs || {}; } catch { ctrLabels = {}; }
   const kindOf = (a) => EXCLUDE_LABELS[a]?.kind || null;
   const isDex = (a) => { const k = kindOf(a); return k === "lp" || k === "mm"; };       // the pool / routers = market
   const isContractSrc = (a) => kindOf(a) === "defi" || contractCache[a] === true;        // a vault/contract = withdrawal
@@ -163,6 +165,7 @@ async function main() {
     peakBal: rnd(r.peakBal), earlyBought: rnd(r.earlyBought), rallyBought: rnd(r.rallyBought), thenNow: rnd(thenNow(r), 2),
     rMktNet: rnd(r.rMktNet), rMktBuy: rnd(r.rMktBuy), rCtrWd: rnd(r.rCtrWd), rWalIn: rnd(r.rWalIn),
     contract: contractCache[r.a] === true, // this "wallet" is actually a smart contract (router/MM/vault/Safe) — not a person
+    ctrKind: ctrLabels[r.a]?.kind || null, ctrLabel: ctrLabels[r.a]?.label || null,
     seeder: r.seeder, ethFunder: fundOf(r.a), ethLabel: fundLabel(r.a), soldOut: r.soldOut, reentered: r.reentered });
 
   // ★ CYCLE: bought EARLY, sold into the TOP for real money, BUYING the rally again
@@ -270,11 +273,24 @@ async function main() {
   //    you can see it wasn't the insiders: contract (router/MM/arb/aggregator), returning (sold out then back),
   //    new wallet (first-ever in the rally), existing holder, insider (the cycle cohort). Every row is clickable.
   const cycleSet = new Set(cycle.map((r) => r.a));
-  const catOf = (r) => contractCache[r.a] === true ? "contract" : isCexAddr(r.a) ? "cex"
-    : cycleSet.has(r.a) ? "insider" : r.reentered ? "returning" : r.firstTs >= RALLY ? "new" : "existing";
+  // a contract's label refines the category: a smart-account/Safe is a PERSON (fall through to person cats);
+  // a router = aggregated retail; mm/arb = a bot; vault = a protocol; unknown = contract.
+  const personCat = (r) => cycleSet.has(r.a) ? "insider" : r.reentered ? "returning" : r.firstTs >= RALLY ? "new" : "existing";
+  const catOf = (r) => {
+    if (contractCache[r.a] === true) {
+      const k = ctrLabels[r.a]?.kind;
+      if (k === "account") return personCat(r);      // smart-account wallet = a person
+      if (k === "router") return "routed";           // aggregated retail through a DEX router
+      if (k === "mm") return "mm";                    // market-maker / arb bot
+      if (k === "vault") return "vault";              // a DeFi protocol
+      return "contract";                             // unknown / unverified
+    }
+    return isCexAddr(r.a) ? "cex" : personCat(r);
+  };
   const buyers = rows.filter((r) => r.rMktNet > 0).sort((a, b) => b.rMktNet - a.rMktNet)
     .map((r) => ({ a: r.a, net: rnd(r.rMktNet), buy: rnd(r.rMktBuy), usd: rnd(r.rMktNet * spot), cat: catOf(r),
-      contract: contractCache[r.a] === true, first: r.first, bag: rnd(r.bal) }));
+      contract: contractCache[r.a] === true, ctrKind: ctrLabels[r.a]?.kind || null, ctrLabel: ctrLabels[r.a]?.label || null,
+      first: r.first, bag: rnd(r.bal) }));
   const totNet = buyers.reduce((s, b) => s + b.net, 0) || 1;
   const byCat = {};
   for (const b of buyers) { const c = byCat[b.cat] ??= { n: 0, net: 0 }; c.n++; c.net += b.net; }

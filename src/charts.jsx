@@ -629,7 +629,9 @@ export function SmartMoneyPanel() {
   const dt = (r) => <>{r.first} <span style={{ color: C.dim }}>@{fmtUsd(r.firstPrice)}</span></>;
   const sim = (x) => x >= 0.5 && x <= 2;                         // rally re-buy is a similar-size bag to the run-up
   const efund = (r) => r.ethFunder ? (r.ethLabel ? <span className="dim">{r.ethLabel}</span> : <Addr a={r.ethFunder} />) : <span className="dim">—</span>;
-  const cw = (r) => r.contract ? <span title="this address is a smart contract (router / MM / vault), not a person" style={{ color: C.amber, fontSize: 9, marginLeft: 4 }}>⚙ contract</span> : null;
+  const cw = (r) => r.contract ? (r.ctrKind === "account"
+    ? <span title="a smart-account / EIP-7702 wallet — a person, not infra" style={{ color: C.dim, fontSize: 9, marginLeft: 4 }}>smart wallet</span>
+    : <span title={"smart contract: " + (r.ctrLabel || "unverified")} style={{ color: C.amber, fontSize: 9, marginLeft: 4 }}>⚙ {r.ctrLabel || "contract"}</span>) : null;
   const realBuyers = cycle.filter((r) => !r.contract && r.rMktNet > 0);
   const nContracts = cycle.filter((r) => r.contract).length;
   return (
@@ -722,11 +724,14 @@ export function SmartMoneyPanel() {
 
 const ES = (a) => <a href={`https://etherscan.io/address/${a}`} target="_blank" rel="noreferrer" title="open on Etherscan" style={{ color: C.dim, marginLeft: 6, fontSize: 10 }}>etherscan ↗</a>;
 const CATMETA = {
-  contract: { label: "contract", color: C.amber, note: "router / MM / aggregator / arb bot — not a person" },
-  returning: { label: "returning", color: C.cyan, note: "sold out before, bought back in" },
-  new: { label: "new wallet", color: C.green, note: "first-ever pepecoin in the rally" },
-  existing: { label: "existing holder", color: C.dim, note: "already held, added more" },
+  returning: { label: "returning", color: C.cyan, note: "a person who had sold out and re-entered" },
+  routed: { label: "routed retail", color: C.lime, note: "aggregated retail through a DEX router (MetaMask / Uniswap / Paraswap / 0x)" },
+  new: { label: "new wallet", color: C.green, note: "a person's first-ever pepecoin, in the rally" },
+  existing: { label: "existing holder", color: C.dim, note: "a person who already held, added more" },
   insider: { label: "insider", color: C.warn, note: "one of the early-sell cohort" },
+  mm: { label: "MM / arb bot", color: C.amber, note: "market-maker or arbitrage bot — likely mirroring a CEX move" },
+  vault: { label: "vault", color: C.amber, note: "a DeFi protocol contract" },
+  contract: { label: "contract", color: C.amber, note: "an unverified contract" },
   cex: { label: "exchange", color: C.dim, note: "a CEX wallet" },
 };
 export function RallyPanel() {
@@ -735,19 +740,22 @@ export function RallyPanel() {
   if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
   const d = feed.data, r = d.rally;
   if (!r) return <div className="cstate">the rally breakdown regenerates on the next daily run.</div>;
-  const catTag = (c) => { const m = CATMETA[c] || { label: c, color: C.dim }; return <span title={m.note} style={{ color: m.color, fontSize: 10.5 }}>{c === "contract" ? "⚙ " : ""}{m.label}</span>; };
+  const infra = new Set(["routed", "mm", "vault", "contract"]);
+  const catTag = (c) => { const m = CATMETA[c] || { label: c, color: C.dim }; return <span title={m.note} style={{ color: m.color, fontSize: 10.5 }}>{infra.has(c) ? "⚙ " : ""}{m.label}</span>; };
+  const insiderPct = (r.byCat.find((c) => c.cat === "insider") || {}).pct || 0;
+  const retailPct = r.byCat.filter((c) => ["returning", "routed", "new", "existing"].includes(c.cat)).reduce((a, c) => a + c.pct, 0);
   return (
     <div>
-      <p className="q">Who actually pushed the price up in this rally — every wallet that <b>net-bought on the DEX</b> since {r.from}, ranked and classified. Click any address for its full buy/sell history, or open it on Etherscan. The point: it was <b>not</b> the insiders.</p>
+      <p className="q">Who actually pushed the price up in this rally — every wallet that <b>net-bought on the DEX</b> since {r.from}, ranked and classified. Contract buyers are labelled (a smart-account wallet is a person; a router is aggregated retail; an arb bot is not). Click any address for its full buy/sell history, or open it on Etherscan.</p>
       <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
         <div className="ov-kpi"><div className="k">net pulled from pool</div><div className="v">{money(r.poolOutUsd)}</div><div className="n">{fmtTok(r.poolOutNet)} tokens — that's all it took</div></div>
         <div className="ov-kpi"><div className="k">distinct net buyers</div><div className="v">{fmtNum(r.buyers)}</div><div className="n">a crowd, not one whale</div></div>
         <div className="ov-kpi"><div className="k">top 10 buyers</div><div className="v">{r.top10Pct}%</div><div className="n">top one just {r.top1Pct}%</div></div>
-        <div className="ov-kpi"><div className="k">insiders' share</div><div className="v warn">{(r.byCat.find((c) => c.cat === "insider") || {}).pct || 0}%</div><div className="n">the early-sell cohort</div></div>
+        <div className="ov-kpi"><div className="k">insiders' share</div><div className="v warn">{insiderPct}%</div><div className="n">early-sell cohort</div></div>
       </div>
 
       <div className="ov-lead" style={{ margin: "0 2px 14px" }}>
-        The price 4×'d on only <b>{money(r.poolOutUsd)}</b> of net tokens leaving the pool — the float is thin enough that this much net buying moves it that far. It came from <b>{r.buyers} dispersed wallets</b> (top buyer just {r.top1Pct}%), not a single actor. This reads as a <b>low-liquidity markup</b>, not informed accumulation.
+        The price 4×'d on only <b>{money(r.poolOutUsd)}</b> of net tokens leaving a thin pool — that's all it took. It came from <b>{r.buyers} dispersed wallets</b> (top buyer just {r.top1Pct}%), not one actor. With contract buyers resolved, <b style={{ color: C.lime }}>~{Math.round(retailPct)}% is dispersed retail</b> (returning traders, new wallets, holders adding, and retail routed through MetaMask/Uniswap/Paraswap), <b style={{ color: C.warn }}>{insiderPct}% the insiders</b>, and almost none is arb/MM bots. This reads as a <b>low-liquidity retail markup</b>, not informed accumulation.
       </div>
 
       <div className="buy-h" style={{ color: C.cyan }}>◆ net market buying by who</div>
@@ -755,16 +763,16 @@ export function RallyPanel() {
         <tbody>{r.byCat.map((c) => (
           <tr key={c.cat}><td>{catTag(c.cat)}</td><td className="r">{fmtNum(c.n)}</td><td className="r pos">{money(c.usd)}</td>
             <td className="r"><b style={{ color: (CATMETA[c.cat] || {}).color || C.tx }}>{c.pct}%</b></td></tr>))}</tbody></table></div>
-      <p className="foot"><b>contract</b> = bought via a router/aggregator (some is retail through MetaMask/1inch, some is arbitrage bots bridging a CEX pump to the DEX — opaque either way). <b>returning</b> = wallets that had sold out and re-entered. <b>new</b> = first-ever pepecoin buyers. <b>insider</b> = the early-sell cohort. Categories are computed from on-chain history, reproducible.</p>
+      <p className="foot"><b>routed retail</b> = end-users buying through a DEX router/aggregator (labelled per contract — MetaMask Spender, UniversalRouter, Paraswap AugustusV6, 0x MainnetSettler). <b>returning</b> = people who sold out and re-entered (incl. smart-account/EIP-7702 wallets). <b>new</b> = first-ever buyers. <b>insider</b> = the early-sell cohort. Contract buyers were resolved via on-chain metadata, so a smart-account wallet counts as a person and a bot doesn't.</p>
 
       <div className="buy-h good" style={{ marginTop: 16 }}>▲ the top buyers — check any of them</div>
-      <div className="tscroll"><table className="dtable"><thead><tr><th>#</th><th>wallet</th><th>type</th><th className="r">net bought</th><th className="r">~$</th><th className="r">bag now</th></tr></thead>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>#</th><th>wallet</th><th>type / label</th><th className="r">net bought</th><th className="r">~$</th><th className="r">bag now</th></tr></thead>
         <tbody>{r.top.slice(0, 40).map((b, i) => (
           <tr key={b.a}><td className="dim">{i + 1}</td>
             <td><Addr a={b.a} />{ES(b.a)}</td>
-            <td>{catTag(b.cat)}</td>
+            <td>{catTag(b.cat)}{b.ctrLabel && <span className="dim" style={{ fontSize: 10 }}> · {b.ctrLabel}</span>}</td>
             <td className="r pos">+{fmtTok(b.net)}</td><td className="r">{money(b.usd)}</td><td className="r">{fmtTok(b.bag)}</td></tr>))}</tbody></table></div>
-      <p className="foot">Ranked by net tokens bought from the pool during the rally (buys − sells). Click the address to open its full buy/sell timeline over the price line, or "etherscan ↗" to verify it yourself. A <span style={{ color: C.amber }}>⚙ contract</span> row is code, not a person — if it's an MM/arb bot its buying likely mirrors a CEX move rather than fresh conviction.</p>
+      <p className="foot">Ranked by net tokens bought from the pool during the rally (buys − sells). Click the address to open its full buy/sell timeline over the price line, or "etherscan ↗" to verify it yourself. Router rows (UniversalRouter, Spender…) are <i>aggregated</i> retail flowing through that router, not one buyer. The near-total absence of MM/arb-bot buyers means the move wasn't a CEX-arb echo — it was real on-chain retail.</p>
     </div>
   );
 }
