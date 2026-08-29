@@ -11,15 +11,15 @@ const ICON = {
   urpd: "🧱", urpdage: "🗺️",
   concentration: "🎯", gini: "📐", whales: "🐋", clusters: "🕸️",
   sopr: "🔁", nrpl: "💵", liveliness: "⚡", cexsupply: "🏦",
-  exitflow: "🚪", survival: "🌱", smart: "🧠",
+  exitflow: "🚪", survival: "🌱", smart: "🧠", rally: "🚀",
 };
 const shortA = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 const iconOf = (id) => (id.startsWith("wallet:") ? "👤" : (ICON[id] || "▪"));
-const TITLE = (id) => (id.startsWith("wallet:") ? "Wallet " + shortA(id.slice(7)) : id === "overview" ? "Overview" : id === "buyers" ? "Who's Buying" : id === "smart" ? "Smart Money" : id === "about" ? "About" : (chartById(id)?.title || id));
-const DEFSIZE = (id) => (id === "smart" ? [860, 620] : id.startsWith("wallet:") ? [720, 560] : id === "overview" ? [740, 580] : id === "buyers" ? [760, 540] : id === "about" ? [480, 380] : id === "whales" || id === "clusters" ? [720, 520] : [680, 480]);
+const TITLE = (id) => (id.startsWith("wallet:") ? "Wallet " + shortA(id.slice(7)) : id === "overview" ? "Overview" : id === "buyers" ? "Who's Buying" : id === "smart" ? "Smart Money" : id === "rally" ? "Who Moved the Rally" : id === "about" ? "About" : (chartById(id)?.title || id));
+const DEFSIZE = (id) => (id === "smart" || id === "rally" ? [860, 620] : id.startsWith("wallet:") ? [720, 560] : id === "overview" ? [740, 580] : id === "buyers" ? [760, 540] : id === "about" ? [480, 380] : id === "whales" || id === "clusters" ? [720, 520] : [680, 480]);
 
 // desktop icons (curated)
-const DESKTOP = ["overview", "buyers", "smart", "exitflow", "survival", "realized", "mvrv", "hodl", "whales", "about"];
+const DESKTOP = ["overview", "buyers", "rally", "smart", "exitflow", "survival", "realized", "mvrv", "hodl", "whales", "about"];
 
 const useMobile = () => {
   const [m, setM] = useState(() => matchMedia("(max-width:720px), (pointer:coarse)").matches);
@@ -95,7 +95,7 @@ function StartMenu({ onOpen, onClose }) {
         <div className="sm-head"><span className="frog">🐸</span><div><div className="who">pepecoin</div><div className="sub">valuation terminal</div></div></div>
         <div className="sm-scroll">
           <div className="sm-grp">desk</div>
-          {["overview", "buyers", "smart", "about"].map((id) => (
+          {["overview", "buyers", "rally", "smart", "about"].map((id) => (
             <div className="sm-item" key={id} onClick={() => onOpen(id)}>
               <span className="ig">{ICON[id]}</span><div><div className="it">{TITLE(id)}</div></div>
             </div>

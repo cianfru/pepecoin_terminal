@@ -720,6 +720,55 @@ export function SmartMoneyPanel() {
   );
 }
 
+const ES = (a) => <a href={`https://etherscan.io/address/${a}`} target="_blank" rel="noreferrer" title="open on Etherscan" style={{ color: C.dim, marginLeft: 6, fontSize: 10 }}>etherscan ↗</a>;
+const CATMETA = {
+  contract: { label: "contract", color: C.amber, note: "router / MM / aggregator / arb bot — not a person" },
+  returning: { label: "returning", color: C.cyan, note: "sold out before, bought back in" },
+  new: { label: "new wallet", color: C.green, note: "first-ever pepecoin in the rally" },
+  existing: { label: "existing holder", color: C.dim, note: "already held, added more" },
+  insider: { label: "insider", color: C.warn, note: "one of the early-sell cohort" },
+  cex: { label: "exchange", color: C.dim, note: "a CEX wallet" },
+};
+export function RallyPanel() {
+  const feed = useJson("smart-money.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
+  const d = feed.data, r = d.rally;
+  if (!r) return <div className="cstate">the rally breakdown regenerates on the next daily run.</div>;
+  const catTag = (c) => { const m = CATMETA[c] || { label: c, color: C.dim }; return <span title={m.note} style={{ color: m.color, fontSize: 10.5 }}>{c === "contract" ? "⚙ " : ""}{m.label}</span>; };
+  return (
+    <div>
+      <p className="q">Who actually pushed the price up in this rally — every wallet that <b>net-bought on the DEX</b> since {r.from}, ranked and classified. Click any address for its full buy/sell history, or open it on Etherscan. The point: it was <b>not</b> the insiders.</p>
+      <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="ov-kpi"><div className="k">net pulled from pool</div><div className="v">{money(r.poolOutUsd)}</div><div className="n">{fmtTok(r.poolOutNet)} tokens — that's all it took</div></div>
+        <div className="ov-kpi"><div className="k">distinct net buyers</div><div className="v">{fmtNum(r.buyers)}</div><div className="n">a crowd, not one whale</div></div>
+        <div className="ov-kpi"><div className="k">top 10 buyers</div><div className="v">{r.top10Pct}%</div><div className="n">top one just {r.top1Pct}%</div></div>
+        <div className="ov-kpi"><div className="k">insiders' share</div><div className="v warn">{(r.byCat.find((c) => c.cat === "insider") || {}).pct || 0}%</div><div className="n">the early-sell cohort</div></div>
+      </div>
+
+      <div className="ov-lead" style={{ margin: "0 2px 14px" }}>
+        The price 4×'d on only <b>{money(r.poolOutUsd)}</b> of net tokens leaving the pool — the float is thin enough that this much net buying moves it that far. It came from <b>{r.buyers} dispersed wallets</b> (top buyer just {r.top1Pct}%), not a single actor. This reads as a <b>low-liquidity markup</b>, not informed accumulation.
+      </div>
+
+      <div className="buy-h" style={{ color: C.cyan }}>◆ net market buying by who</div>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>category</th><th className="r">wallets</th><th className="r">net bought</th><th className="r">share</th></tr></thead>
+        <tbody>{r.byCat.map((c) => (
+          <tr key={c.cat}><td>{catTag(c.cat)}</td><td className="r">{fmtNum(c.n)}</td><td className="r pos">{money(c.usd)}</td>
+            <td className="r"><b style={{ color: (CATMETA[c.cat] || {}).color || C.tx }}>{c.pct}%</b></td></tr>))}</tbody></table></div>
+      <p className="foot"><b>contract</b> = bought via a router/aggregator (some is retail through MetaMask/1inch, some is arbitrage bots bridging a CEX pump to the DEX — opaque either way). <b>returning</b> = wallets that had sold out and re-entered. <b>new</b> = first-ever pepecoin buyers. <b>insider</b> = the early-sell cohort. Categories are computed from on-chain history, reproducible.</p>
+
+      <div className="buy-h good" style={{ marginTop: 16 }}>▲ the top buyers — check any of them</div>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>#</th><th>wallet</th><th>type</th><th className="r">net bought</th><th className="r">~$</th><th className="r">bag now</th></tr></thead>
+        <tbody>{r.top.slice(0, 40).map((b, i) => (
+          <tr key={b.a}><td className="dim">{i + 1}</td>
+            <td><Addr a={b.a} />{ES(b.a)}</td>
+            <td>{catTag(b.cat)}</td>
+            <td className="r pos">+{fmtTok(b.net)}</td><td className="r">{money(b.usd)}</td><td className="r">{fmtTok(b.bag)}</td></tr>))}</tbody></table></div>
+      <p className="foot">Ranked by net tokens bought from the pool during the rally (buys − sells). Click the address to open its full buy/sell timeline over the price line, or "etherscan ↗" to verify it yourself. A <span style={{ color: C.amber }}>⚙ contract</span> row is code, not a person — if it's an MM/arb bot its buying likely mirrors a CEX move rather than fresh conviction.</p>
+    </div>
+  );
+}
+
 export function WalletDetail({ addr }) {
   const feed = useJson("smart-money.json");
   const pf = useJson("price-series.json");
@@ -727,6 +776,7 @@ export function WalletDetail({ addr }) {
   if (!feed.data) return <div className="cstate">loading…</div>;
   const d = feed.data;
   const row = [...(d.cycle || []), ...(d.fresh || []), ...(d.cohort || []), ...(d.reentrants || []), ...(d.buysRecent || [])].find((r) => r.a === addr);
+  const rb = !row && (d.rally?.top || []).find((b) => b.a === addr); // a rally-only buyer (not in a cohort) — still checkable
   const det = (d.detail || {})[addr];
   const buys = (det?.buys || []).map(([dt, p, q]) => ({ t: Date.parse(dt), p, q }));
   const sells = (det?.sells || []).map(([dt, p, q]) => ({ t: Date.parse(dt), p, q }));
@@ -742,6 +792,13 @@ export function WalletDetail({ addr }) {
     ["sold near top", money(row.soldHigh || 0), "pos"],
     ["real market buy (rally)", (row.rMktNet >= 0 ? "+" : "−") + fmtTok(Math.abs(row.rMktNet || 0)), row.rMktNet > 0 ? "pos" : row.rMktNet < 0 ? "neg" : "dim"],
     ["vault / wallet inflow", fmtTok((row.rCtrWd || 0) + (row.rWalIn || 0)), "dim"],
+  ] : rb ? [
+    ["net market buy (rally)", "+" + fmtTok(rb.net), "pos"],
+    ["~ USD", money(rb.usd), "pos"],
+    ["current bag", fmtTok(rb.bag), ""],
+    ["type", (CATMETA[rb.cat] || {}).label || rb.cat, rb.cat === "contract" ? "" : "pos"],
+    ["first seen", rb.first, ""],
+    ["is a contract?", rb.contract ? "yes ⚙" : "no (EOA)", rb.contract ? "" : "pos"],
   ] : [];
   const tf = (t) => new Date(t).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
   return (
@@ -752,7 +809,7 @@ export function WalletDetail({ addr }) {
         {row.seeder && <>first pepecoin from <Addr a={row.seeder} /></>}
         {row.ethFunder && row.seeder && row.ethFunder === row.seeder && <b style={{ color: C.amber }}> — same address funded ETH & seeded tokens</b>}
       </p>}
-      {row && <div className="ov-kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+      {(row || rb) && <div className="ov-kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
         {tiles.map(([k, v, cls]) => <div className="ov-kpi" key={k}><div className="k">{k}</div><div className={"v " + cls}>{v}</div></div>)}
       </div>}
       <div className="legend"><span><i className="dot" style={{ background: C.tx }} />price</span><span><i className="dot" style={{ background: C.green }} />buys</span><span><i className="dot" style={{ background: C.warn }} />sells</span></div>
@@ -774,7 +831,7 @@ export function WalletDetail({ addr }) {
   );
 }
 
-const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel };
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel };
 export function winContent(id) {
   if (id && id.startsWith("wallet:")) return <WalletDetail addr={id.slice(7)} />;
   const P = PANELS[id];

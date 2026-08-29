@@ -92,6 +92,7 @@ async function main() {
     soldOut: false, reentered: false, b7: null, b30: null, bRally: null,
   })); return w; };
   let snap7 = false, snap30 = false, snapRally = false;
+  let poolOut = 0, poolIn = 0; // gross tokens leaving / entering the LP pool during the rally = the price-moving flow
   for (const t of tx) {
     if (!snap30 && t.ts >= c30) { for (const [, w] of W) w.b30 = w.bal; snap30 = true; }
     if (!snapRally && t.ts >= RALLY) { for (const [, w] of W) w.bRally = w.bal; snapRally = true; }
@@ -110,6 +111,7 @@ async function main() {
         else if (isContractSrc(t.from)) w.rCtrWd += t.amt; // withdrawal from a vault/contract (NOT a buy)
         else if (isCexAddr(t.from)) w.rCexIn += t.amt;     // from an exchange
         else w.rWalIn += t.amt;                            // wallet-to-wallet (OTC / shuffle / p2p)
+        if (kindOf(t.from) === "lp") poolOut += t.amt;     // tokens the pool paid out to a buyer
       }
       if (w.bal > w.peakBal) w.peakBal = w.bal;
     }
@@ -119,7 +121,7 @@ async function main() {
       while (rem > EPS && w.lots.length) { const lot = w.lots[0]; const take = Math.min(rem, lot.q); cost += take * lot.p; lot.q -= take; rem -= take; if (lot.q <= EPS) w.lots.shift(); }
       w.proceeds += t.amt * price; w.costSold += cost; w.realized += t.amt * price - cost; w.bal -= t.amt; w.sold += t.amt;
       if (price >= HIGH) w.soldHigh += t.amt * price;
-      if (t.ts >= RALLY && isDex(t.to)) w.rMktSell += t.amt; // sold back onto the DEX during the rally
+      if (t.ts >= RALLY && isDex(t.to)) { w.rMktSell += t.amt; if (kindOf(t.to) === "lp") poolIn += t.amt; } // sold back onto the DEX
       if (w.bal < EPS) { w.bal = 0; w.soldOut = true; w.lots = []; }
     }
   }
@@ -263,8 +265,29 @@ async function main() {
     };
   }).sort((a, b) => (b.soldHigh + b.realized) - (a.soldHigh + a.realized));
 
-  // second pass: buy/sell timeline for surfaced wallets (capped)
-  const keep = members;
+  // ── "WHO MOVED THE RALLY": every wallet that net-BOUGHT on the DEX during the rally, ranked + categorised.
+  //    The price-moving flow is the NET tokens the pool paid out (poolOut − poolIn). Buyers are classified so
+  //    you can see it wasn't the insiders: contract (router/MM/arb/aggregator), returning (sold out then back),
+  //    new wallet (first-ever in the rally), existing holder, insider (the cycle cohort). Every row is clickable.
+  const cycleSet = new Set(cycle.map((r) => r.a));
+  const catOf = (r) => contractCache[r.a] === true ? "contract" : isCexAddr(r.a) ? "cex"
+    : cycleSet.has(r.a) ? "insider" : r.reentered ? "returning" : r.firstTs >= RALLY ? "new" : "existing";
+  const buyers = rows.filter((r) => r.rMktNet > 0).sort((a, b) => b.rMktNet - a.rMktNet)
+    .map((r) => ({ a: r.a, net: rnd(r.rMktNet), buy: rnd(r.rMktBuy), usd: rnd(r.rMktNet * spot), cat: catOf(r),
+      contract: contractCache[r.a] === true, first: r.first, bag: rnd(r.bal) }));
+  const totNet = buyers.reduce((s, b) => s + b.net, 0) || 1;
+  const byCat = {};
+  for (const b of buyers) { const c = byCat[b.cat] ??= { n: 0, net: 0 }; c.n++; c.net += b.net; }
+  const rally = {
+    from: iso(RALLY), poolOutNet: rnd(poolOut - poolIn), poolOut: rnd(poolOut), poolIn: rnd(poolIn),
+    poolOutUsd: rnd((poolOut - poolIn) * spot), buyers: buyers.length, totNet: rnd(totNet), totUsd: rnd(totNet * spot),
+    top1Pct: rnd(100 * (buyers[0]?.net || 0) / totNet), top10Pct: rnd(100 * buyers.slice(0, 10).reduce((s, b) => s + b.net, 0) / totNet),
+    byCat: Object.entries(byCat).sort((a, b) => b[1].net - a[1].net).map(([cat, v]) => ({ cat, n: v.n, net: rnd(v.net), usd: rnd(v.net * spot), pct: rnd(100 * v.net / totNet) })),
+    top: buyers.slice(0, 60),
+  };
+
+  // second pass: buy/sell timeline for surfaced wallets + the top rally buyers (so every shown wallet is clickable)
+  const keep = new Set([...members, ...rally.top.map((b) => b.a)]);
   const detail = {};
   for (const t of tx) {
     const price = priceAt(dayFloor(t.ts));
@@ -299,7 +322,7 @@ async function main() {
       freshUsd: rnd(fresh.reduce((s, r) => s + r.firstBuyUsd, 0)),
       reentrantRealized: rnd(reentrants.reduce((s, r) => s + r.realized, 0)),
       reentrantReinvest30d: rnd(reentrants.reduce((s, r) => s + r.d30, 0)) },
-    funding: fundingSummary,
+    funding: fundingSummary, rally,
     cycle: cycle.slice(0, 60), fresh: fresh.slice(0, 60), cohort: cohort.slice(0, 100), reentrants: reentrants.slice(0, 100),
     buysRecent, clusters: clusters.slice(0, 40), surfaced: [...members], detail };
   await writeFile("public/smart-money.json", JSON.stringify(out));
@@ -312,5 +335,7 @@ async function main() {
   console.log(`CLUSTERS (surfaced wallets related by token flow): ${clusters.length}`);
   for (const c of clusters.slice(0, 8)) console.log(`  #${c.id} ${c.size} wallets · sold-high $${(c.soldHigh/1e3).toFixed(0)}k · rally +${(c.dRally/1e3).toFixed(0)}k · seeders ${c.seeders.length}`);
   console.log(`cohort ${cohort.length} · reentrants ${reentrants.length}`);
+  console.log(`WHO MOVED THE RALLY: net pool outflow ${(rally.poolOutNet/1e3).toFixed(0)}k (~$${(rally.poolOutUsd/1e3).toFixed(0)}k) · ${rally.buyers} net buyers · top10 ${rally.top10Pct}%`);
+  for (const c of rally.byCat) console.log(`  ${c.cat.padEnd(10)} ${c.n} wallets · ~$${(c.usd/1e3).toFixed(0)}k · ${c.pct}%`);
 }
 main();
