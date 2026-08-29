@@ -1,5 +1,5 @@
 import {
-  ResponsiveContainer, ComposedChart, AreaChart, BarChart, LineChart, Area, Line, Bar, Cell,
+  ResponsiveContainer, ComposedChart, AreaChart, BarChart, LineChart, ScatterChart, Area, Line, Bar, Cell, Scatter, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
 import {
@@ -615,8 +615,92 @@ export function AboutPanel() {
   );
 }
 
-const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel };
+const openWin = (id) => window.dispatchEvent(new CustomEvent("pepe-open", { detail: id }));
+const money = (v) => { const a = Math.abs(v); const s = v < 0 ? "−$" : "$"; if (a >= 1e6) return s + (a / 1e6).toFixed(2) + "M"; if (a >= 1e3) return s + (a / 1e3).toFixed(0) + "k"; return s + a.toFixed(0); };
+const Addr = ({ a }) => <a className="waddr" onClick={(e) => { e.preventDefault(); openWin("wallet:" + a); }} href={"?w=" + a}>{shortAddr(a)}</a>;
+
+export function SmartMoneyPanel() {
+  const feed = useJson("smart-money.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
+  const d = feed.data;
+  const reent = d.reentrants || [];
+  const cohort = d.cohort || [];
+  const buyingNow = cohort.filter((r) => r.d30 > 0).length;
+  const winners = [...cohort].sort((a, b) => b.realized - a.realized);
+  const flow = (v) => <td className={"r " + (v > 0 ? "pos" : v < 0 ? "neg" : "dim")}>{v === 0 ? "—" : (v > 0 ? "+" : "−") + fmtTok(Math.abs(v))}</td>;
+  return (
+    <div>
+      <p className="q">The wallets under the hood. "Smart money" = wallets that realized big gains (≥{d.minRoi || 5}× or ≥$25k) on prior trades. The first table is the one you asked for: wallets that <b>sold out and are buying back</b> — with the profit they locked in first. Click any address for its full buy/sell history.</p>
+      <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="ov-kpi"><div className="k">proven winners</div><div className="v good">{fmtNum(d.stats.cohort)}</div><div className="n">≥5× or ≥$25k realized</div></div>
+        <div className="ov-kpi"><div className="k">winners buying now</div><div className={"v " + (buyingNow ? "good" : "")}>{fmtNum(buyingNow)}</div><div className="n">30d net +</div></div>
+        <div className="ov-kpi"><div className="k">sold out, back in</div><div className="v warn">{fmtNum(d.stats.reentrants)}</div><div className="n">re-entrants</div></div>
+        <div className="ov-kpi"><div className="k">their prior realized</div><div className="v">{money(d.stats.reentrantRealized)}</div><div className="n">before re-entry</div></div>
+      </div>
+
+      <div className="buy-h warn" style={{ marginTop: 12 }}>▼ sold the top, buying back — with prior realized P&amp;L</div>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">prior realized</th><th className="r">ROI</th><th className="r">bought back 30d</th><th className="r">bag now</th></tr></thead>
+        <tbody>{reent.slice(0, 20).map((r) => (
+          <tr key={r.a}><td><Addr a={r.a} /></td><td className="r pos">{money(r.realized)}</td><td className="r">{r.roi}×</td>
+            <td className="r pos">+{fmtTok(r.d30)}</td><td className="r">{fmtTok(r.bal)}</td></tr>))}</tbody></table></div>
+
+      <div className="buy-h good" style={{ marginTop: 16 }}>▲ biggest realized winners — are they buying or sitting?</div>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">realized</th><th className="r">ROI</th><th className="r">30d flow</th><th className="r">bag</th><th className="r">unrealized</th></tr></thead>
+        <tbody>{winners.slice(0, 20).map((r) => (
+          <tr key={r.a}><td><Addr a={r.a} /></td><td className="r pos">{money(r.realized)}</td><td className="r">{r.roi}×</td>
+            {flow(r.d30)}<td className="r">{fmtTok(r.bal)}</td><td className={"r " + (r.unreal >= 0 ? "pos" : "neg")}>{money(r.unreal)}</td></tr>))}</tbody></table></div>
+
+      <p className="foot">Realized P&amp;L = matched buy→sell round-trips (FIFO), cost basis = market price on the acquisition day. ROI = proceeds ÷ cost of coins sold — note many of the big earners realized large <i>dollar</i> profits at modest multiples (high-volume trading), which is itself a tell. A wallet with big realized profit + a fresh re-buy is the "sold high, back again" pattern — sharp traders or insiders cycling; the drill-down + Etherscan let you judge. Not proof of coordination on its own.</p>
+    </div>
+  );
+}
+
+export function WalletDetail({ addr }) {
+  const feed = useJson("smart-money.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading…</div>;
+  const d = feed.data;
+  const row = [...(d.cohort || []), ...(d.reentrants || []), ...(d.buysRecent || [])].find((r) => r.a === addr);
+  const det = (d.detail || {})[addr];
+  const buys = (det?.buys || []).map(([dt, p, q]) => ({ t: Date.parse(dt), p, q }));
+  const sells = (det?.sells || []).map(([dt, p, q]) => ({ t: Date.parse(dt), p, q }));
+  const tiles = row ? [
+    ["realized P&L", money(row.realized), row.realized >= 0 ? "pos" : "neg"],
+    ["realized ROI", row.roi + "×", "pos"],
+    ["current bag", fmtTok(row.bal), ""],
+    ["avg cost", fmtUsd(row.avgCost), ""],
+    ["unrealized", money(row.unreal), row.unreal >= 0 ? "pos" : "neg"],
+    ["30d flow", (row.d30 >= 0 ? "+" : "") + fmtTok(row.d30), row.d30 >= 0 ? "pos" : "neg"],
+  ] : [];
+  const tf = (t) => new Date(t).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+  return (
+    <div>
+      <p className="q">Every buy (green) and sell (red) this wallet made, sized by amount, on the price it paid. <a href={`https://etherscan.io/address/${addr}`} target="_blank" rel="noreferrer">Etherscan ↗</a> · <a href={`https://app.zerion.io/${addr}/overview`} target="_blank" rel="noreferrer">Zerion ↗</a></p>
+      {row && <div className="ov-kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+        {tiles.map(([k, v, cls]) => <div className="ov-kpi" key={k}><div className="k">{k}</div><div className={"v " + cls}>{v}</div></div>)}
+      </div>}
+      <div className="legend"><span><i className="dot" style={{ background: C.green }} />buys</span><span><i className="dot" style={{ background: C.warn }} />sells</span></div>
+      <div style={{ width: "100%", height: 300 }}><ResponsiveContainer>
+        <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis type="number" dataKey="t" domain={["dataMin", "dataMax"]} tickFormatter={tf} stroke={AXIS} minTickGap={40} />
+          <YAxis type="number" dataKey="p" scale="log" domain={["auto", "auto"]} tickFormatter={fmtUsd} stroke={AXIS} width={62} allowDataOverflow />
+          <ZAxis type="number" dataKey="q" range={[20, 400]} />
+          <Tooltip content={Tip((v) => fmtUsd(v))} cursor={{ strokeDasharray: "3 3" }} />
+          {row && row.avgCost > 0 && <ReferenceLine y={row.avgCost} stroke={C.dim} strokeDasharray="5 5" />}
+          <Scatter {...noAnim} name="buys" data={buys} fill={C.green} fillOpacity={0.6} />
+          <Scatter {...noAnim} name="sells" data={sells} fill={C.warn} fillOpacity={0.6} />
+        </ScatterChart>
+      </ResponsiveContainer></div>
+      <p className="foot">Dashed line = the wallet's average cost. Points are on the day's market price. {det ? "" : "Full history is captured for the shown cohort/re-entrant wallets; open this wallet from the Smart Money list."}</p>
+    </div>
+  );
+}
+
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel };
 export function winContent(id) {
+  if (id && id.startsWith("wallet:")) return <WalletDetail addr={id.slice(7)} />;
   const P = PANELS[id];
   if (P) return <P />;
   return chartEl(id);

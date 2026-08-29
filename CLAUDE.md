@@ -179,7 +179,16 @@ into `onchain.yml` (daily). Windows: **Who's Buying** (`buyers` panel — 120-da
 top 7d buyers), **How holders left** (`exitflow`), **Who's Still Here** (`survival`). Bar/dust knobs
 `--bar=1000 --dust=50`. **⭐ FINDINGS (2026-08-29 rally +3.4×):** net +3M absorbed, 41% fresh demand, coins
 drained from the LP — but **survival is 6%** (3,118 of 55,498 ever-holders ≥1k remain) = extreme churn, a
-heavily-speculated coin. **🔲 NEXT:** more SPX-parity charts (valuation composite, methods page, CEX venue
+heavily-speculated coin.
+- **✅ SMART MONEY (`scripts/build-smart-money.mjs` → `smart-money.json`, daily):** per-wallet FIFO **realized
+  P&L** + ROI + position/unrealized + recent flow. Surfaces: **re-entrants** (sold out → buying again, WITH prior
+  realized P&L — the owner's "insiders sold the top & re-accumulating?" list), biggest realized winners + current
+  stance, recent buyers tagged. Emits per-wallet buy/sell `detail`. Windows: **Smart Money** (`smart`) + per-wallet
+  **drill-down** (`wallet:<addr>` — realized/ROI/bag/avgcost/unrealized tiles + buy(green)/sell(red) scatter on log
+  price + Etherscan/Zerion). Clicking a wallet fires a `pepe-open` CustomEvent → App opens the window; `iconOf`/
+  `TITLE`/`DEFSIZE` in App handle the `wallet:` prefix. **⭐ FINDING:** 76 wallets sold out & buying back, ~$1.0M
+  prior realized; top banked $421k, sold to zero, re-bought 200k. Big earners realized large **dollar** profits at
+  ~1× multiples (high-volume trading = the cycling tell). Data shown; coordination NOT asserted. **🔲 NEXT:** more SPX-parity charts (valuation composite, methods page, CEX venue
 flows, cost-basis-by-cohort, a richer per-wallet buyer drill-down), then 3D holder skyline (whale city NOT
 wanted). Owner priority = analytical VALUE over visual polish; no social/bot.
 
