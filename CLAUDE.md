@@ -243,6 +243,20 @@ heavily-speculated coin.
       `WalletDetail` gained a fallback tile set (net market buy · ~$ · bag · type · first seen · is-a-contract) for a
       rally-only buyer not in any cohort. **LESSON: on a thin float, "who pushed it" is usually the float itself — measure
       net pool outflow first; a 4× can need only a few hundred $k.**
+      - **✅ CONTRACT LABELLING — `scripts/label-contracts.mjs` (owner: "label the top contract buyers").** Resolves the
+        "contract" bucket via **Blockscout `/api/v2/addresses/{addr}` (FREE, no key)** — verified contract `name`, `proxy_type`
+        (`eip7702` = a delegated EOA = a PERSON), and implementation names — plus a keyword classifier (`classify()`, unit-tested)
+        and a behavioural fallback (counterparties + net holding). Kinds: **router** (DEX router/aggregator → the buyer is
+        aggregated RETAIL), **account** (Safe / EIP-7702 / AA smart wallet → a PERSON, re-folded into returning/new/existing),
+        **mm** (arb/MM bot), **vault** (DeFi protocol), **contract** (unknown). Cached in `public/contract-labels.json`
+        (incremental). `build-smart-money.mjs` reads it → rally buyers carry `ctrKind`/`ctrLabel`, and `catOf` re-categorises
+        (a smart-account counts as a person, a router as routed-retail). **⭐ THE RESULT SHARPENS THE FINDING:** the 45 contract
+        addresses = **24 smart-account wallets (people), 12 routers (retail), 9 unknown — ~0 MM/arb bots.** Top "contract"
+        buyers are MetaMask Spender, UniversalRouter, Paraswap AugustusV6, 0x MainnetSettler (routed retail) + EIP-7702 smart
+        accounts (people); the #1 buyer `0x002fc5a0` is a person's EIP-7702 wallet holding 1.53M. So **~93% of the rally buying
+        is dispersed RETAIL, 6% insiders, ~0% bots** — a low-liquidity retail markup, and NOT a CEX-arb echo (no arb bots).
+        The absence of MM/arb buyers is itself the signal. **LESSON: a "contract" is not automatically infra — an EIP-7702 /
+        Safe / AA account is a person; always resolve the name/proxy before excluding it from the human buyer count.**
     - **✅✅ REAL-MARKET-BUY SPLIT + CONTRACT DETECTION — BUILT 2026-08-29 (owner: "this is not a market buy, it's a
       withdrawal from a smart contract" — bcred `0xb0974f…15a4`).** THE HONESTY-DEFINING CORRECTION. The FIFO engine counted
       ANY token arriving in a wallet as a "buy" at market price — so a wallet receiving its own tokens back from a DeFi vault,
