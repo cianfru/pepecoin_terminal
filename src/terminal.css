@@ -66,3 +66,72 @@ a:hover { text-decoration: underline; }
 .tip { background: var(--panel2); border: 1px solid var(--line); padding: 8px 10px; font-size: 12px; }
 .tip .td { color: var(--dim); margin-bottom: 3px; }
 .tip .tr { display: flex; justify-content: space-between; gap: 16px; }
+
+/* ── nav ── */
+.tnav { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:2px 0 10px; }
+.tnav .brand { font-weight:700; letter-spacing:.14em; text-transform:uppercase; font-size:14px; color:var(--tx); }
+.tnav .brand:hover { text-decoration:none; }
+.tnav .brand .c { color:var(--accent); margin:0 2px; }
+.tnav-links { display:flex; gap:16px; }
+.tnav-links a { color:var(--dim); font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
+.tnav-links a.on { color:var(--accent); }
+
+/* ── home ── */
+.lead { color:var(--dim); font-size:13.5px; line-height:1.65; margin:20px 2px 22px; max-width:720px; }
+.lead b { color:var(--tx); }
+.lead-cta { display:inline-block; margin-left:6px; color:var(--accent); white-space:nowrap; }
+.featgrid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.featgrid > div { display:flex; flex-direction:column; }
+.feat-more { color:var(--dim); font-size:11.5px; margin:-8px 2px 0; }
+
+/* ── gallery ── */
+.page-h { font-size:16px; letter-spacing:.14em; text-transform:uppercase; margin:14px 0 2px; }
+.page-sub { color:var(--dim); font-size:12.5px; margin:0 0 20px; }
+.grp { margin:0 0 26px; }
+.grp-h { display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--line); padding-bottom:7px; margin-bottom:14px; flex-wrap:wrap; }
+.grp-h h2 { font-size:13px; letter-spacing:.08em; text-transform:uppercase; margin:0; }
+.grp-h span { color:var(--faint); font-size:11.5px; }
+.tilegrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+.tile { display:block; background:var(--panel); border:1px solid var(--line); border-left:2px solid var(--line); padding:12px 13px 10px; transition:border-color .12s; }
+.tile:hover { border-left-color:var(--accent); text-decoration:none; }
+.tile-top { display:flex; align-items:baseline; justify-content:space-between; }
+.tile-title { color:var(--tx); font-size:13px; font-weight:700; }
+.tile-go { color:var(--faint); }
+.tile:hover .tile-go { color:var(--accent); }
+.tile-blurb { color:var(--dim); font-size:11.5px; margin:3px 0 6px; min-height:28px; }
+.spark { width:100%; height:38px; }
+.spark.ph { background:linear-gradient(90deg, transparent, rgba(148,161,176,.08), transparent); }
+
+/* ── chart page ── */
+.back { display:inline-block; color:var(--dim); font-size:12px; margin:8px 0 14px; }
+.more { margin:6px 0 10px; }
+.more-h { color:var(--faint); font-size:11px; text-transform:uppercase; letter-spacing:.1em; }
+.more-links { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.chip { background:var(--panel); border:1px solid var(--line); padding:5px 10px; font-size:11.5px; color:var(--dim); }
+.chip:hover { border-color:var(--accent); color:var(--accent); text-decoration:none; }
+
+/* ── chart states ── */
+.cstate { color:var(--dim); padding:60px 0; text-align:center; font-size:12.5px; }
+.cstate.err { color:var(--warn); }
+
+/* ── tables ── */
+.tscroll { overflow-x:auto; }
+.dtable { width:100%; border-collapse:collapse; font-size:12.5px; }
+.dtable th { text-align:left; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.06em; font-size:10.5px; padding:6px 10px; border-bottom:1px solid var(--line); }
+.dtable td { padding:6px 10px; border-bottom:1px solid var(--line); color:var(--tx); }
+.dtable td.r, .dtable th.r { text-align:right; }
+.dtable td.dim { color:var(--faint); }
+.dtable td.pos { color:var(--accent); }
+.dtable td.neg { color:var(--warn); }
+
+/* ── footer ── */
+.site-foot { color:var(--faint); font-size:11px; border-top:1px solid var(--line); margin-top:30px; padding-top:14px; }
+.site-foot .dim { color:var(--faint); }
+
+/* ── mobile ── */
+@media (max-width:640px) {
+  .featgrid { grid-template-columns:1fr; }
+  .tilegrid { grid-template-columns:1fr 1fr; }
+  .lead-cta { display:block; margin:8px 0 0; }
+}
+@media (max-width:400px) { .tilegrid { grid-template-columns:1fr; } }
