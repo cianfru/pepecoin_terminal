@@ -31,10 +31,10 @@ export function ChartCard({ title, q, foot, legend, feed, height = 300, children
   );
 }
 
-const Tip = (fmt) => ({ active, payload, label }) =>
+const Tip = (fmt, labelFmt) => ({ active, payload, label }) =>
   active && payload && payload.length ? (
     <div className="tip">
-      <div className="td">{label}</div>
+      <div className="td">{labelFmt ? labelFmt(label) : label}</div>
       {payload.filter((p) => p.value != null).map((p) => (
         <div className="tr" key={p.name} style={{ color: p.color || p.fill }}>
           <span>{p.name}</span><span>{fmt(p.value, p.name)}</span>
@@ -623,77 +623,120 @@ export function SmartMoneyPanel() {
   const feed = useJson("smart-money.json");
   if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
   if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
-  const d = feed.data;
-  const reent = d.reentrants || [];
-  const cohort = d.cohort || [];
-  const buyingNow = cohort.filter((r) => r.d30 > 0).length;
-  const winners = [...cohort].sort((a, b) => b.realized - a.realized);
-  const flow = (v) => <td className={"r " + (v > 0 ? "pos" : v < 0 ? "neg" : "dim")}>{v === 0 ? "—" : (v > 0 ? "+" : "−") + fmtTok(Math.abs(v))}</td>;
+  const d = feed.data, s = d.stats || {};
+  const cycle = d.cycle || [], fresh = d.fresh || [], clusters = d.clusters || [], reent = d.reentrants || [];
+  const dt = (r) => <>{r.first} <span style={{ color: C.dim }}>@{fmtUsd(r.firstPrice)}</span></>;
   return (
     <div>
-      <p className="q">The wallets under the hood. "Smart money" = wallets that realized big gains (≥{d.minRoi || 5}× or ≥$25k) on prior trades. The first table is the one you asked for: wallets that <b>sold out and are buying back</b> — with the profit they locked in first. Click any address for its full buy/sell history.</p>
+      <p className="q">Who's actually behind the {d.spot ? "rally" : "move"} — under the hood. Three reads, hardest signal first: wallets that <b>bought early, sold into the top, and are buying again now</b>; brand-<b>new wallets</b> that showed up and bought big; and which of these wallets are <b>related by token flow</b>. Click any address for its full buy/sell history over the price line.</p>
       <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
-        <div className="ov-kpi"><div className="k">proven winners</div><div className="v good">{fmtNum(d.stats.cohort)}</div><div className="n">≥5× or ≥$25k realized</div></div>
-        <div className="ov-kpi"><div className="k">winners buying now</div><div className={"v " + (buyingNow ? "good" : "")}>{fmtNum(buyingNow)}</div><div className="n">30d net +</div></div>
-        <div className="ov-kpi"><div className="k">sold out, back in</div><div className="v warn">{fmtNum(d.stats.reentrants)}</div><div className="n">re-entrants</div></div>
-        <div className="ov-kpi"><div className="k">their prior realized</div><div className="v">{money(d.stats.reentrantRealized)}</div><div className="n">before re-entry</div></div>
+        <div className="ov-kpi"><div className="k">early → sold top → back</div><div className="v good">{fmtNum(s.cycle)}</div><div className="n">round-trip wallets</div></div>
+        <div className="ov-kpi"><div className="k">they cashed near top</div><div className="v">{money(s.cycleSoldHigh)}</div><div className="n">sold at ≥{fmtUsd(d.high)}</div></div>
+        <div className="ov-kpi"><div className="k">fresh big buyers</div><div className="v warn">{fmtNum(s.fresh)}</div><div className="n">new & holding</div></div>
+        <div className="ov-kpi"><div className="k">related groups</div><div className="v">{fmtNum(s.clusters)}</div><div className="n">token-flow clusters</div></div>
       </div>
 
-      <div className="buy-h warn" style={{ marginTop: 12 }}>▼ sold the top, buying back — with prior realized P&amp;L</div>
-      <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">prior realized</th><th className="r">ROI</th><th className="r">bought back 30d</th><th className="r">bag now</th></tr></thead>
-        <tbody>{reent.slice(0, 20).map((r) => (
-          <tr key={r.a}><td><Addr a={r.a} /></td><td className="r pos">{money(r.realized)}</td><td className="r">{r.roi}×</td>
-            <td className="r pos">+{fmtTok(r.d30)}</td><td className="r">{fmtTok(r.bal)}</td></tr>))}</tbody></table></div>
+      <div className="buy-h warn">★ bought early · sold the top · buying the rally again</div>
+      <div className="tscroll"><table className="dtable"><thead><tr>
+        <th>wallet</th><th>first buy</th><th className="r">sold near top</th><th className="r">realized</th><th className="r">buying rally</th><th className="r">bag now</th></tr></thead>
+        <tbody>{cycle.slice(0, 25).map((r) => (
+          <tr key={r.a}><td><Addr a={r.a} /></td><td>{dt(r)}</td><td className="r pos">{money(r.soldHigh)}</td>
+            <td className={"r " + (r.realized >= 0 ? "pos" : "neg")}>{money(r.realized)}</td>
+            <td className={"r " + (r.dRally > 0 ? "pos" : "dim")}>{r.dRally > 0 ? "+" + fmtTok(r.dRally) : "—"}</td>
+            <td className="r">{fmtTok(r.bal)}</td></tr>))}</tbody></table></div>
+      <p className="foot">These are the wallets your thesis is about: bought in near launch, distributed millions at ≥{fmtUsd(d.high)} (into / around the $7.43 top), and are net buyers again in the current rally. "sold near top" is USD proceeds sold at ≥{fmtUsd(d.high)}. Suggestive of insiders cycling — the drill-down + Etherscan let you judge.</p>
 
-      <div className="buy-h good" style={{ marginTop: 16 }}>▲ biggest realized winners — are they buying or sitting?</div>
-      <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">realized</th><th className="r">ROI</th><th className="r">30d flow</th><th className="r">bag</th><th className="r">unrealized</th></tr></thead>
-        <tbody>{winners.slice(0, 20).map((r) => (
-          <tr key={r.a}><td><Addr a={r.a} /></td><td className="r pos">{money(r.realized)}</td><td className="r">{r.roi}×</td>
-            {flow(r.d30)}<td className="r">{fmtTok(r.bal)}</td><td className={"r " + (r.unreal >= 0 ? "pos" : "neg")}>{money(r.unreal)}</td></tr>))}</tbody></table></div>
+      <div className="buy-h good" style={{ marginTop: 16 }}>▲ fresh wallets — showed up, bought big, still holding</div>
+      <div className="tscroll"><table className="dtable"><thead><tr>
+        <th>wallet</th><th>first ever</th><th className="r">bought</th><th className="r">bag</th><th>seeded by</th></tr></thead>
+        <tbody>{fresh.slice(0, 25).map((r) => (
+          <tr key={r.a}><td><Addr a={r.a} /></td><td>{dt(r)}</td><td className="r pos">{money(r.firstBuyUsd)}</td>
+            <td className="r">{fmtTok(r.bal)}</td><td>{r.seeder ? <Addr a={r.seeder} /> : <span className="dim">Uniswap / exchange</span>}</td></tr>))}</tbody></table></div>
+      <p className="foot">No pepecoin history before the last few weeks, bought a large amount, haven't sold. The "seeded by" column is who sent them their first pepecoin — a real EOA there (not the pool) is a coordination tell. <b>Note:</b> this can't see ETH funding (e.g. a Coinbase→fresh-wallet seed) — that needs an ETH-layer lookup; here we only see pepecoin flow.</p>
 
-      <p className="foot">Realized P&amp;L = matched buy→sell round-trips (FIFO), cost basis = market price on the acquisition day. ROI = proceeds ÷ cost of coins sold — note many of the big earners realized large <i>dollar</i> profits at modest multiples (high-volume trading), which is itself a tell. A wallet with big realized profit + a fresh re-buy is the "sold high, back again" pattern — sharp traders or insiders cycling; the drill-down + Etherscan let you judge. Not proof of coordination on its own.</p>
+      {clusters.length > 0 && <>
+        <div className="buy-h" style={{ marginTop: 16, color: C.cyan }}>◆ related wallets — clustered by token flow</div>
+        {clusters.slice(0, 12).map((c) => (
+          <div className="clus" key={c.id}>
+            <div className="clus-h">
+              <span className="cid">group {c.id}</span>
+              <span className="cmeta">{c.size} wallets</span>
+              <span className="cmeta">sold near top {money(c.soldHigh)}</span>
+              <span className="cmeta" style={{ color: c.dRally > 0 ? C.green : C.dim }}>rally {c.dRally > 0 ? "+" + fmtTok(c.dRally) : "flat"}</span>
+              {c.seeders?.length > 0 && <span className="cmeta">seeder {c.seeders.map((sd) => <Addr key={sd} a={sd} />)}</span>}
+              {c.flagged && <span className="cflag">large — unverified</span>}
+            </div>
+            <div className="clus-b">{c.members.map((m) => (
+              <div className="clus-row" key={m.a}>
+                <Addr a={m.a} />
+                <span className="cv">sold top {money(m.soldHigh)}</span>
+                <span className={"cv" + (m.dRally > 0 ? "" : " neg")}>{m.dRally > 0 ? "buying +" + fmtTok(m.dRally) : m.bal > 0 ? "holding " + fmtTok(m.bal) : "out"}</span>
+                {m.seeder && <span className="clus-why">← {shortAddr(m.seeder)}</span>}
+              </div>))}
+              {c.links?.length > 0 && <div className="clus-why" style={{ marginTop: 4 }}>{c.links.length} direct token transfer{c.links.length > 1 ? "s" : ""} between members</div>}
+            </div>
+          </div>))}
+        <p className="foot">Wallets grouped when they share a common pepecoin seeder (one address sent several of them their first coins) or moved tokens between each other. Distributor-scale seeders (feeding many wallets) are excluded so one router can't fuse the whole graph. Token-flow linkage only — not ETH funding, not proof of one owner.</p>
+      </>}
+
+      {reent.length > 0 && <>
+        <div className="buy-h warn" style={{ marginTop: 16 }}>▼ sold out entirely, buying back (prior realized ≥ ${(d.minReentry || 5000) / 1000}k)</div>
+        <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">prior realized</th><th className="r">ROI</th><th className="r">bought back 30d</th><th className="r">bag</th></tr></thead>
+          <tbody>{reent.slice(0, 15).map((r) => (
+            <tr key={r.a}><td><Addr a={r.a} /></td><td className="r pos">{money(r.realized)}</td><td className="r">{r.roi}×</td>
+              <td className="r pos">+{fmtTok(r.d30)}</td><td className="r">{fmtTok(r.bal)}</td></tr>))}</tbody></table></div>
+      </>}
+
+      <p className="foot">Realized P&amp;L = matched buy→sell round-trips (FIFO), cost basis = the market price on the acquisition day. All reconstructed from public transfers — reproducible, $0. None of this is proof of coordination on its own; it's the evidence, laid out to judge.</p>
     </div>
   );
 }
 
 export function WalletDetail({ addr }) {
   const feed = useJson("smart-money.json");
+  const pf = useJson("price-series.json");
   if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
   if (!feed.data) return <div className="cstate">loading…</div>;
   const d = feed.data;
-  const row = [...(d.cohort || []), ...(d.reentrants || []), ...(d.buysRecent || [])].find((r) => r.a === addr);
+  const row = [...(d.cycle || []), ...(d.fresh || []), ...(d.cohort || []), ...(d.reentrants || []), ...(d.buysRecent || [])].find((r) => r.a === addr);
   const det = (d.detail || {})[addr];
   const buys = (det?.buys || []).map(([dt, p, q]) => ({ t: Date.parse(dt), p, q }));
   const sells = (det?.sells || []).map(([dt, p, q]) => ({ t: Date.parse(dt), p, q }));
+  const price = (pf.data?.series || []).map(([dt, p]) => ({ t: Date.parse(dt), price: p }));
+  // crop the price line to the wallet's active window (with padding) so the orbs aren't lost on a 3-yr axis
+  const ts = [...buys, ...sells].map((e) => e.t);
+  const lo = ts.length ? Math.min(...ts) - 20 * 864e5 : -Infinity, hi = ts.length ? Math.max(...ts) + 20 * 864e5 : Infinity;
+  const pcrop = price.filter((p) => p.t >= lo && p.t <= hi);
   const tiles = row ? [
     ["realized P&L", money(row.realized), row.realized >= 0 ? "pos" : "neg"],
     ["realized ROI", row.roi + "×", "pos"],
     ["current bag", fmtTok(row.bal), ""],
     ["avg cost", fmtUsd(row.avgCost), ""],
-    ["unrealized", money(row.unreal), row.unreal >= 0 ? "pos" : "neg"],
-    ["30d flow", (row.d30 >= 0 ? "+" : "") + fmtTok(row.d30), row.d30 >= 0 ? "pos" : "neg"],
+    ["sold near top", money(row.soldHigh || 0), "pos"],
+    ["buying rally", (row.dRally >= 0 ? "+" : "") + fmtTok(row.dRally || 0), row.dRally > 0 ? "pos" : "dim"],
   ] : [];
   const tf = (t) => new Date(t).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
   return (
     <div>
-      <p className="q">Every buy (green) and sell (red) this wallet made, sized by amount, on the price it paid. <a href={`https://etherscan.io/address/${addr}`} target="_blank" rel="noreferrer">Etherscan ↗</a> · <a href={`https://app.zerion.io/${addr}/overview`} target="_blank" rel="noreferrer">Zerion ↗</a></p>
+      <p className="q">Every buy (green) and sell (red) this wallet made, sized by amount, on the real price line. <a href={`https://etherscan.io/address/${addr}`} target="_blank" rel="noreferrer">Etherscan ↗</a> · <a href={`https://app.zerion.io/${addr}/overview`} target="_blank" rel="noreferrer">Zerion ↗</a></p>
       {row && <div className="ov-kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
         {tiles.map(([k, v, cls]) => <div className="ov-kpi" key={k}><div className="k">{k}</div><div className={"v " + cls}>{v}</div></div>)}
       </div>}
-      <div className="legend"><span><i className="dot" style={{ background: C.green }} />buys</span><span><i className="dot" style={{ background: C.warn }} />sells</span></div>
+      <div className="legend"><span><i className="dot" style={{ background: C.tx }} />price</span><span><i className="dot" style={{ background: C.green }} />buys</span><span><i className="dot" style={{ background: C.warn }} />sells</span></div>
       <div style={{ width: "100%", height: 300 }}><ResponsiveContainer>
-        <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+        <ComposedChart margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID} />
-          <XAxis type="number" dataKey="t" domain={["dataMin", "dataMax"]} tickFormatter={tf} stroke={AXIS} minTickGap={40} />
+          <XAxis type="number" dataKey="t" domain={["dataMin", "dataMax"]} tickFormatter={tf} stroke={AXIS} minTickGap={40} allowDuplicatedCategory={false} />
           <YAxis type="number" dataKey="p" scale="log" domain={["auto", "auto"]} tickFormatter={fmtUsd} stroke={AXIS} width={62} allowDataOverflow />
-          <ZAxis type="number" dataKey="q" range={[20, 400]} />
-          <Tooltip content={Tip((v) => fmtUsd(v))} cursor={{ strokeDasharray: "3 3" }} />
+          <ZAxis type="number" dataKey="q" range={[24, 420]} />
+          <Tooltip content={Tip((v) => fmtUsd(v), (t) => new Date(t).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }))} cursor={{ strokeDasharray: "3 3" }} />
           {row && row.avgCost > 0 && <ReferenceLine y={row.avgCost} stroke={C.dim} strokeDasharray="5 5" />}
-          <Scatter {...noAnim} name="buys" data={buys} fill={C.green} fillOpacity={0.6} />
-          <Scatter {...noAnim} name="sells" data={sells} fill={C.warn} fillOpacity={0.6} />
-        </ScatterChart>
+          <Line {...noAnim} type="monotone" data={pcrop} dataKey="price" name="price" stroke={C.tx} strokeWidth={1.4} dot={false} strokeOpacity={0.65} />
+          <Scatter {...noAnim} name="buys" data={buys} dataKey="p" fill={C.green} fillOpacity={0.7} />
+          <Scatter {...noAnim} name="sells" data={sells} dataKey="p" fill={C.warn} fillOpacity={0.7} />
+        </ComposedChart>
       </ResponsiveContainer></div>
-      <p className="foot">Dashed line = the wallet's average cost. Points are on the day's market price. {det ? "" : "Full history is captured for the shown cohort/re-entrant wallets; open this wallet from the Smart Money list."}</p>
+      <p className="foot">White line = the real daily price. Dashed line = the wallet's average cost. Orbs sit on the day's price, sized by amount. {det ? "" : "Full history is captured for the surfaced wallets — open one from the Smart Money list."}</p>
     </div>
   );
 }

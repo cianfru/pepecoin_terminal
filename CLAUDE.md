@@ -180,17 +180,39 @@ top 7d buyers), **How holders left** (`exitflow`), **Who's Still Here** (`surviv
 `--bar=1000 --dust=50`. **⭐ FINDINGS (2026-08-29 rally +3.4×):** net +3M absorbed, 41% fresh demand, coins
 drained from the LP — but **survival is 6%** (3,118 of 55,498 ever-holders ≥1k remain) = extreme churn, a
 heavily-speculated coin.
-- **✅ SMART MONEY (`scripts/build-smart-money.mjs` → `smart-money.json`, daily):** per-wallet FIFO **realized
-  P&L** + ROI + position/unrealized + recent flow. Surfaces: **re-entrants** (sold out → buying again, WITH prior
-  realized P&L — the owner's "insiders sold the top & re-accumulating?" list), biggest realized winners + current
-  stance, recent buyers tagged. Emits per-wallet buy/sell `detail`. Windows: **Smart Money** (`smart`) + per-wallet
-  **drill-down** (`wallet:<addr>` — realized/ROI/bag/avgcost/unrealized tiles + buy(green)/sell(red) scatter on log
-  price + Etherscan/Zerion). Clicking a wallet fires a `pepe-open` CustomEvent → App opens the window; `iconOf`/
-  `TITLE`/`DEFSIZE` in App handle the `wallet:` prefix. **⭐ FINDING:** 76 wallets sold out & buying back, ~$1.0M
-  prior realized; top banked $421k, sold to zero, re-bought 200k. Big earners realized large **dollar** profits at
-  ~1× multiples (high-volume trading = the cycling tell). Data shown; coordination NOT asserted. **🔲 NEXT:** more SPX-parity charts (valuation composite, methods page, CEX venue
-flows, cost-basis-by-cohort, a richer per-wallet buyer drill-down), then 3D holder skyline (whale city NOT
-wanted). Owner priority = analytical VALUE over visual polish; no social/bot.
+- **✅ SMART MONEY / SMART WALLETS (`scripts/build-smart-money.mjs` → `smart-money.json` + `price-series.json`, daily):**
+  per-wallet FIFO **realized P&L** + ROI + position/unrealized + recent flow + **era-aware behaviour** (bought early?
+  sold into the top? buying the current rally?). **⭐ The cycle map is baked into the thresholds** (ATH **$7.43 on
+  2024-04-11**; "early" = first buy `< 2024-03-01`; "sold high" = proceeds sold at price `≥ $1.0`; rally start
+  `2026-08-14`). Four cohorts (`--early/--high/--rally/--min_top/...` are the knobs):
+  - **`cycle`** ⭐ THE ONE the owner wants: bought EARLY → sold into the TOP for real money (`soldHigh ≥ $15k`) →
+    BUYING the rally again (`dRally > 0`). The insider round-trip, shown not asserted. (32 wallets, $39M sold near top.)
+  - **`fresh`**: first-ever pepecoin in the last 45d, bought big (`firstBuyUsd ≥ $3k`), still holding (`soldFrac < 25%`).
+    Column shows the **seeder** (who sent the first coins). The "seeded then accumulating this one coin" candidates —
+    e.g. three wallets each bought an identical $10k/100k on the SAME day.
+  - **`cohort`** (proven realized winners, size-gated) + **`reentrants`** (sold out → buying back, realized `≥ $5k`
+    floor to kill dust — this was the noise the owner flagged: 1×/tiny wallets are now filtered out).
+  - **`clusters`** ⭐ "are they related?": union-find over the surfaced wallets linked by (a) a **shared pepecoin
+    SEEDER** (2..`MAX_SEED=6` wallets — over that = distributor, dropped) and (b) **direct token transfers** between
+    members (skipping high-degree **hubs**, `HUB=8`). **⚠ SPX SUPERNODE LESSON APPLIED:** the first cut fused a
+    110-wallet blob via an untagged distributor-seeder; the fan-out + hub guards break it into clean 2–4-wallet groups
+    (0 flagged). Over-merging overstates coordination → every rule errs shy; groups `>25` are shown `flagged`, not trusted.
+  - **⚠ HONEST SCOPE — TOKEN-FLOW ONLY:** clustering sees pepecoin transfers, NOT **ETH funding** (a Coinbase→fresh-wallet
+    seed is invisible here). Stated on the panel. Detecting the ETH seed needs an ETH-layer lookup (Etherscan/trace),
+    a separate data source — not wired (no key; sandbox egress).
+  - **Windows:** **Smart Money** (`smart`) + per-wallet **drill-down** (`wallet:<addr>`). Clicking any address fires a
+    `pepe-open` CustomEvent → App opens the window (`iconOf`/`TITLE`/`DEFSIZE` handle the `wallet:` prefix). **✅ PRICE
+    LINE FIXED (owner: "I can only see the orbs, not the price chart"):** the drill-down is now a `ComposedChart` — the
+    real daily price (`price-series.json`, cropped to the wallet's active window) drawn as a white line UNDER the
+    buy(green)/sell(red) orbs, so you see each trade against where price actually was. We DO have a price feed
+    (`prices.csv` → `price-series.json`); the old version just wasn't plotting it.
+  - **⭐ FINDINGS (2026-08-29, +3.4× rally $0.069→$0.235):** 32 early→sold-top→buying-back wallets ($39M cashed near the
+    $7.43 top); 17 fresh big buyers; 15 clean related groups — e.g. **group 1 = 4 wallets all seeded by `0xe1e7…f18e`**
+    that dumped $3.94M near the top and one is buying +212k in the rally; group 10 = 2 wallets from seeder `0xf1cb…5954`
+    dumped $13.18M. **🔲 NEXT:** ETH-funding enrichment (the Coinbase-seed detector the owner really wants — needs an
+    ETH-layer source), then more SPX-parity charts (valuation composite, methods page, CEX venue flows,
+    cost-basis-by-cohort). 3D holder skyline later (whale city NOT wanted). Owner priority = analytical VALUE over
+    visual polish; no social/bot.
 
 **B. Valuation layer (the hero):** the **valuation composite** — a 0–1 oscillator over history, independent
 axes (valuation / trend / relative / sentiment), percentile-ranked, weights published on a Methods page

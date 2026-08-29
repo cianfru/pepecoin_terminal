@@ -178,3 +178,28 @@ body {
 @media (max-width: 720px), (pointer: coarse) { .buy-cols { grid-template-columns: 1fr; } .ov-kpis.buyers { grid-template-columns: 1fr 1fr; } }
 .waddr { color: var(--pepe); cursor: pointer; font-family: var(--mono); }
 .waddr:hover { text-decoration: underline; }
+
+/* data tables (smart money / clusters) */
+.tscroll { overflow-x: auto; border: 1px solid var(--winln); margin-bottom: 14px; }
+.dtable { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; min-width: 460px; }
+.dtable th { text-align: left; padding: 7px 10px; background: #0c1510; color: #8fcea8;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .07em; border-bottom: 1px solid var(--winln); white-space: nowrap; }
+.dtable td { padding: 6px 10px; border-bottom: 1px solid #0e1712; color: var(--ink); white-space: nowrap; }
+.dtable tr:last-child td { border-bottom: 0; }
+.dtable td.r, .dtable th.r { text-align: right; }
+.dtable td.pos { color: var(--pepe); } .dtable td.neg { color: #fca5a5; } .dtable td.dim, .dtable .dim { color: #6f9a80; }
+.dtable tbody tr:hover { background: #0d1811; }
+
+/* clusters */
+.clus { border: 1px solid var(--winln); margin-bottom: 10px; background: #0c1510; }
+.clus-h { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; padding: 8px 11px;
+  border-bottom: 1px solid var(--winln); font-family: var(--mono); font-size: 12px; }
+.clus-h .cid { color: var(--pepe); font-weight: 600; }
+.clus-h .cmeta { color: #7fb894; font-size: 11px; }
+.clus-h .cflag { color: #fca5a5; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.clus-b { padding: 4px 11px 9px; }
+.clus-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; padding: 4px 0;
+  border-top: 1px solid #0e1712; font-family: var(--mono); font-size: 11.5px; }
+.clus-row:first-child { border-top: 0; }
+.clus-row .cv { color: #9fd7b4; } .clus-row .cv.neg { color: #fca5a5; }
+.clus-why { color: #6f9a80; font-size: 10.5px; }
