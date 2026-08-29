@@ -467,6 +467,7 @@ const REG = {
   urpd: UrpdChart, urpdage: UrpdAgeChart,
   concentration: ConcentrationChart, gini: GiniChart, whales: WhalesTable, clusters: ClustersTable,
   sopr: SoprChart, nrpl: NrplChart, liveliness: LivelinessChart, cexsupply: CexSupplyChart,
+  exitflow: ExitFlowChart, survival: SurvivalChart,
 };
 export function chartEl(id) {
   const Comp = REG[id];
@@ -507,43 +508,95 @@ export function OverviewPanel() {
 }
 
 export function BuyersPanel() {
-  const feed = useJson("whales.json");
-  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
-  if (!feed.data) return <div className="cstate">loading…</div>;
-  const ws = feed.data.wallets;
-  const add = ws.filter((w) => w.d30 > 0).sort((a, b) => b.d30 - a.d30);
-  const shed = ws.filter((w) => w.d30 < 0).sort((a, b) => a.d30 - b.d30);
-  const sum = (a) => a.reduce((s, w) => s + Math.abs(w.d30), 0);
-  const net = sum(add) - sum(shed);
-  const Row = ({ w, sign }) => (
-    <tr>
-      <td><a href={`https://etherscan.io/address/${w.a}`} target="_blank" rel="noreferrer">{shortAddr(w.a)}</a></td>
-      <td className="r">{fmtTok(w.bal)}</td>
-      <td className={"r " + (sign > 0 ? "pos" : "neg")}>{sign > 0 ? "+" : "−"}{fmtTok(Math.abs(w.d30))}</td>
-    </tr>
-  );
+  const bf = useJson("buyer-flow.json");
+  const wh = useJson("whales.json");
+  if (bf.err) return <div className="cstate err">could not load — {bf.err}</div>;
+  if (!bf.data) return <div className="cstate">loading…</div>;
+  const days = bf.data.days;
+  const win = days.slice(-120);
+  const r14 = days.slice(-14).reduce((s, r) => ({ nw: s.nw + r.nw, re: s.re + r.re, ad: s.ad + r.ad, so: s.so + r.so, nNew: s.nNew + r.nNew }), { nw: 0, re: 0, ad: 0, so: 0, nNew: 0 });
+  const gross = r14.nw + r14.re + r14.ad;
+  const fresh = gross ? (100 * (r14.nw + r14.re) / gross) : 0;
+  const net14 = gross - r14.so;
+  const data = win.map((r) => ({ d: r.d, nw: r.nw, re: r.re, ad: r.ad, so: -r.so, net: r.net }));
   return (
     <div>
-      <p className="q">Whales (≥100k) accumulating vs distributing over the last 30 days — is big money stepping in or stepping out?</p>
-      <div className="ov-kpis buyers">
-        <div className="ov-kpi"><div className="k">accumulating</div><div className="v good">{add.length}</div><div className="n">whales, +{fmtTok(sum(add))}</div></div>
-        <div className="ov-kpi"><div className="k">distributing</div><div className="v warn">{shed.length}</div><div className="n">whales, −{fmtTok(sum(shed))}</div></div>
-        <div className="ov-kpi"><div className="k">net 30d</div><div className={"v " + (net >= 0 ? "good" : "warn")}>{(net >= 0 ? "+" : "−") + fmtTok(Math.abs(net))}</div><div className="n">tokens</div></div>
+      <p className="q">Who is actually buying — brand-new wallets, wallets that had sold out and came back, or existing holders adding? And is that demand being met by sellers? (last 120 days)</p>
+      <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="ov-kpi"><div className="k">net 14d</div><div className={"v " + (net14 >= 0 ? "good" : "warn")}>{(net14 >= 0 ? "+" : "−") + fmtTok(Math.abs(net14))}</div><div className="n">tokens absorbed</div></div>
+        <div className="ov-kpi"><div className="k">fresh demand</div><div className="v good">{fresh.toFixed(0)}%</div><div className="n">new + returning</div></div>
+        <div className="ov-kpi"><div className="k">new wallets</div><div className="v">{fmtNum(r14.nNew)}</div><div className="n">first buy, 14d</div></div>
+        <div className="ov-kpi"><div className="k">sold into it</div><div className="v warn">{fmtTok(r14.so)}</div><div className="n">14d</div></div>
       </div>
-      <div className="buy-cols">
-        <div>
-          <div className="buy-h good">▲ accumulating</div>
-          <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">balance</th><th className="r">30d</th></tr></thead>
-            <tbody>{add.slice(0, 12).map((w) => <Row key={w.a} w={w} sign={1} />)}</tbody></table></div>
-        </div>
-        <div>
-          <div className="buy-h warn">▼ distributing</div>
-          <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">balance</th><th className="r">30d</th></tr></thead>
-            <tbody>{shed.slice(0, 12).map((w) => <Row key={w.a} w={w} sign={-1} />)}</tbody></table></div>
-        </div>
-      </div>
-      <p className="foot">Whale = wallet ≥100k tokens (infrastructure excluded). Net flow over 30 days. A deeper day-by-day "who's buying the rally" feed (new vs returning buyers) is coming next.</p>
+      <div className="legend"><span><i className="dot" style={{ background: C.green }} />new</span><span><i className="dot" style={{ background: C.cyan }} />returning</span><span><i className="dot" style={{ background: C.lime }} />adding</span><span><i className="dot" style={{ background: C.warn }} />sold</span></div>
+      <div style={{ width: "100%", height: 260 }}><ResponsiveContainer>
+        <ComposedChart data={data} margin={{ top: 6, right: 8, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis {...xAxis} minTickGap={38} /><YAxis stroke={AXIS} tickFormatter={(v) => fmtTok(Math.abs(v))} width={48} />
+          <Tooltip content={Tip((v) => fmtTok(Math.abs(v)))} />
+          <ReferenceLine y={0} stroke={C.dim} />
+          <Bar {...noAnim} dataKey="nw" name="new" stackId="1" fill={C.green} />
+          <Bar {...noAnim} dataKey="re" name="returning" stackId="1" fill={C.cyan} />
+          <Bar {...noAnim} dataKey="ad" name="adding" stackId="1" fill={C.lime} />
+          <Bar {...noAnim} dataKey="so" name="sold" stackId="1" fill={C.warn} />
+          <Line {...noAnim} type="monotone" dataKey="net" name="net" stroke="#fff" strokeWidth={1.5} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer></div>
+      {wh.data && (() => {
+        const add = [...wh.data.wallets].filter((w) => w.d7 > 0).sort((a, b) => b.d7 - a.d7).slice(0, 10);
+        return (<><div className="buy-h good" style={{ marginTop: 14 }}>top wallets buying (7d)</div>
+          <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">balance</th><th className="r">7d</th></tr></thead>
+            <tbody>{add.map((w) => <tr key={w.a}><td><a href={`https://etherscan.io/address/${w.a}`} target="_blank" rel="noreferrer">{shortAddr(w.a)}</a></td><td className="r">{fmtTok(w.bal)}</td><td className="r pos">+{fmtTok(w.d7)}</td></tr>)}</tbody></table></div></>);
+      })()}
+      <p className="foot">New = wallet's first-ever buy. Returning = had sold to ~0 and bought back. Net (white) = buying − selling. Heavy churn is normal for pepecoin — the tell of a real move is fresh demand that then <i>holds</i> (see Who's Still Here).</p>
     </div>
+  );
+}
+
+export function ExitFlowChart() {
+  const feed = useJson("exit-flow.json");
+  return (
+    <ChartCard feed={feed} title="How holders left"
+      q="When wallets sold out and left, were they leaving in profit or capitulating at a loss?"
+      legend={[{ label: "left in profit", c: C.amber }, { label: "left at a loss", c: C.warn }]}
+      foot="Supply that crossed below the holder bar each day (a wallet leaving), split by whether the exit-day price was above or below its average cost. Avg-cost proxy, not full FIFO — read the balance of profit vs loss, not the exact figure.">
+      {(u) => (
+        <BarChart data={u.days.slice(-180)} margin={{ top: 8, right: 10, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis {...xAxis} /><YAxis stroke={AXIS} tickFormatter={fmtTok} width={48} />
+          <Tooltip content={Tip((v) => fmtTok(v))} />
+          <Bar {...noAnim} dataKey="profit" name="left in profit" stackId="1" fill={C.amber} fillOpacity={0.85} />
+          <Bar {...noAnim} dataKey="loss" name="left at a loss" stackId="1" fill={C.warn} fillOpacity={0.85} />
+        </BarChart>
+      )}
+    </ChartCard>
+  );
+}
+
+export function SurvivalChart() {
+  const feed = useJson("survival.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading…</div>;
+  const u = feed.data;
+  return (
+    <section className="card">
+      <h2>Who's still here</h2>
+      <p className="q">Of every wallet that ever held ≥{fmtTok(u.bar)} tokens, only <b style={{ color: C.green }}>{fmtNum(u.holdNow)}</b> of <b>{fmtNum(u.everHeld)}</b> ({(100 - u.gonePct).toFixed(0)}%) still hold today. Extreme churn — the signature of a heavily-speculated coin. The bars show how many of each quarter's arrivals remain.</p>
+      <div className="legend"><span><i className="dot" style={{ background: "#24402f" }} />arrived</span><span><i className="dot" style={{ background: C.green }} />still hold</span><span><i className="dot" style={{ background: C.amber }} />survival %</span></div>
+      <div style={{ width: "100%", height: 300 }}><ResponsiveContainer>
+        <ComposedChart data={u.cohorts} margin={{ top: 8, right: 10, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="q" stroke={AXIS} minTickGap={18} />
+          <YAxis yAxisId="l" stroke={AXIS} tickFormatter={fmtTok} width={48} />
+          <YAxis yAxisId="r" orientation="right" domain={[0, 100]} stroke={AXIS} tickFormatter={(v) => v + "%"} width={40} />
+          <Tooltip content={Tip((v, n) => (n === "survival %" ? v.toFixed(0) + "%" : fmtNum(v)))} />
+          <Bar {...noAnim} yAxisId="l" dataKey="arrived" name="arrived" fill="#24402f" />
+          <Bar {...noAnim} yAxisId="l" dataKey="holdNow" name="still hold" fill={C.green} />
+          <Line {...noAnim} yAxisId="r" type="monotone" dataKey="pct" name="survival %" stroke={C.amber} strokeWidth={2} dot={{ r: 2 }} />
+        </ComposedChart>
+      </ResponsiveContainer></div>
+      <p className="foot">"Still hold" = current balance ≥ the holder bar. Recent quarters read high (right-censoring — they haven't had time to churn out yet).</p>
+    </section>
   );
 }
 
