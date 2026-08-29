@@ -777,6 +777,67 @@ export function RallyPanel() {
   );
 }
 
+const WATCHMETA = {
+  staging: { color: C.amber, tag: "STAGING", line: "Loaded, not fired." },
+  distributing: { color: C.warn, tag: "DISTRIBUTING", line: "They're offloading — the exits are moving." },
+  accumulating: { color: C.green, tag: "ACCUMULATING", line: "Net buying on the open market." },
+  quiet: { color: C.dim, tag: "QUIET", line: "Little net movement." },
+};
+export function InsiderWatchPanel() {
+  const feed = useJson("insider-watch.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
+  const w = feed.data, m = WATCHMETA[w.status] || WATCHMETA.quiet;
+  const daily = (w.daily || []).map((x) => ({ t: Date.parse(x.d), bought: x.bought, out: -(x.soldPool + x.toCex), net: x.net }));
+  const usd = (t) => money(t * w.spot);
+  const tf = (t) => new Date(t).toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: "UTC" });
+  return (
+    <div>
+      <p className="q">The forward tripwire on the early-seller + coordinated-cluster cohort ({w.cohortSize} wallets). They've consolidated a big bag without selling — so the question is what they do <b>next</b>. This watches their outflows daily and arms if they start moving to exchanges. Every wallet is clickable + on Etherscan.</p>
+
+      <div style={{ border: "1px solid " + m.color, background: "#0c1510", padding: "12px 14px", marginBottom: 14, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline" }}>
+        <span style={{ color: m.color, fontFamily: "var(--mono)", fontSize: 22, fontWeight: 700, letterSpacing: ".04em" }}>● {m.tag}</span>
+        <span style={{ color: C.tx, fontSize: 13 }}>{m.line}</span>
+        <span style={{ color: w.tripwire.armed ? C.warn : C.dim, fontFamily: "var(--mono)", fontSize: 11, marginLeft: "auto" }}>tripwire: {w.tripwire.armed ? "⚠ ARMED" : "not armed"} · to-exchange 7d: {fmtTok(w.tripwire.toCexRecent7d)}</span>
+      </div>
+      <p className="foot" style={{ marginTop: -8 }}>{w.why}. Window: last {w.days} days.</p>
+
+      <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="ov-kpi"><div className="k">net bag change</div><div className={"v " + (w.totals.net >= 0 ? "good" : "warn")}>{w.totals.net >= 0 ? "+" : "−"}{money(Math.abs(w.totals.net) * w.spot)}</div><div className="n">{fmtTok(w.totals.net)} tokens</div></div>
+        <div className="ov-kpi"><div className="k">bought on market</div><div className="v">{money(w.totals.bought * w.spot)}</div><div className="n">real DEX buys</div></div>
+        <div className="ov-kpi"><div className="k">sold on DEX</div><div className="v">{money(w.totals.soldPool * w.spot)}</div><div className="n">two-way churn</div></div>
+        <div className="ov-kpi"><div className="k">→ exchanges</div><div className={"v " + (w.totals.toCex > 0 ? "warn" : "")}>{money(w.totals.toCex * w.spot)}</div><div className="n">the offload tell</div></div>
+      </div>
+
+      <div className="buy-h" style={{ color: C.cyan }}>◆ daily flow — in (green) vs out to DEX/exchange (red)</div>
+      <div style={{ width: "100%", height: 240 }}><ResponsiveContainer>
+        <ComposedChart data={daily} margin={{ top: 8, right: 12, bottom: 4, left: 4 }} stackOffset="sign">
+          <CartesianGrid stroke={GRID} />
+          <XAxis type="number" dataKey="t" domain={["dataMin", "dataMax"]} scale="time" tickFormatter={tf} stroke={AXIS} minTickGap={40} />
+          <YAxis tickFormatter={(v) => fmtTok(v)} stroke={AXIS} width={54} />
+          <Tooltip content={Tip((v) => fmtTok(v) + " · " + usd(Math.abs(v)), (t) => tf(t))} />
+          <ReferenceLine y={0} stroke={AXIS} />
+          <Bar {...noAnim} dataKey="bought" name="bought" fill={C.green} stackId="s" />
+          <Bar {...noAnim} dataKey="out" name="sold / to-exchange" fill={C.warn} stackId="s" />
+        </ComposedChart>
+      </ResponsiveContainer></div>
+      <p className="foot">Bars above 0 = tokens flowing INTO the cohort (market buys); below 0 = flowing OUT (DEX sells + exchange deposits). A cohort that is staging shows little of either; a wall of red — especially exchange deposits — is distribution starting.</p>
+
+      <div className="buy-h good" style={{ marginTop: 16 }}>▲ the cohort — sorted by exit activity, check any of them</div>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>wallet</th><th className="r">net (window)</th><th className="r">bought</th><th className="r">sold DEX</th><th className="r">→ exch</th><th className="r">→ fresh</th><th className="r">bag</th></tr></thead>
+        <tbody>{(w.wallets || []).slice(0, 30).map((r) => (
+          <tr key={r.a}><td><Addr a={r.a} />{ES(r.a)}</td>
+            <td className={"r " + (r.net >= 0 ? "pos" : "neg")}>{r.net >= 0 ? "+" : "−"}{fmtTok(Math.abs(r.net))}</td>
+            <td className="r">{r.bought ? fmtTok(r.bought) : "—"}</td>
+            <td className={"r " + (r.soldPool ? "neg" : "dim")}>{r.soldPool ? fmtTok(r.soldPool) : "—"}</td>
+            <td className={"r " + (r.toCex ? "neg" : "dim")}>{r.toCex ? fmtTok(r.toCex) : "—"}</td>
+            <td className={"r " + (r.toFresh ? "" : "dim")}>{r.toFresh ? fmtTok(r.toFresh) : "—"}</td>
+            <td className="r">{fmtTok(r.bag)}</td></tr>))}</tbody></table></div>
+      <p className="foot">"→ exch" is the column to watch: a cohort wallet depositing to a CEX is the clearest sign it's about to sell. Click any address for its full buy/sell timeline over the price line, or "etherscan ↗" to verify. This regenerates daily — the status flips the moment the exits move.</p>
+    </div>
+  );
+}
+
 export function WalletDetail({ addr }) {
   const feed = useJson("smart-money.json");
   const pf = useJson("price-series.json");
@@ -839,7 +900,7 @@ export function WalletDetail({ addr }) {
   );
 }
 
-const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel };
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel };
 export function winContent(id) {
   if (id && id.startsWith("wallet:")) return <WalletDetail addr={id.slice(7)} />;
   const P = PANELS[id];

@@ -206,6 +206,30 @@ heavily-speculated coin.
     real daily price (`price-series.json`, cropped to the wallet's active window) drawn as a white line UNDER the
     buy(green)/sell(red) orbs, so you see each trade against where price actually was. We DO have a price feed
     (`prices.csv` → `price-series.json`); the old version just wasn't plotting it.
+  - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
+    repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
+    answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**
+    (daily step) reads the cohort (cycle ∪ cluster members, ~73 wallets), streams the archive, and emits
+    `public/insider-watch.json`: a daily flow series (bought / sold-DEX / to-CEX / to-fresh / net), per-wallet window
+    totals (each clickable + Etherscan), a plain **status** (staging / distributing / accumulating / quiet) and a
+    **tripwire** (arms on any CEX outflow or a net-negative window). Panel **`InsiderWatchPanel`** (🚨, window `watch`,
+    desktop + Start menu). **⚠ STATUS THRESHOLDS ARE HONEST-CALIBRATED:** distribution = the bag LEAVING (to a CEX, or net
+    holdings shrinking while selling), NOT two-way DEX churn while the position grows — a first cut wrongly flagged
+    "distributing" off $96k of churn against a +$927k position; fixed.
+    - **⭐⭐ THE VERDICT (2026-08-29): NOT re-accumulation, NOT (yet) distribution — STAGING.** Cohort rally-window trace:
+      received $1.17M (only **$183k bought on-market**, $235k withdrawn from bcred vault, **$753k from a web of related
+      wallets**, **$0 from CEX**); sent $243k ($59k DEX sells, **$0 to any CEX**, $54k to fresh wallets); **net +$928k — the
+      bag GREW, by consolidation not buying, and nothing went to an exchange.** So: open-market re-accumulation is refuted;
+      active distribution is refuted (0 CEX); what's left is a consolidated, liquid, staged bag — a "loaded gun," direction
+      unproven. **The honest answer to "enough evidence it's not a repositioning?": NO — it looks like staging, and intent is
+      only resolvable forward, by watching the exits.** (Said plainly to the owner; NOT financial advice.)
+    - **⭐ SOURCE TRACE of the $753k "from other wallets":** dominated by ONE old wallet (`0x7d544a853d`, 1.5M/$353k, ~47%)
+      plus source wallets that share common funders (incl. the flagged `0xafd18a20`, and `0x89e51fa8ca`/`0xae2d4617c8`/
+      `0xf64cd87e17` each funding pairs) — an ADJACENT coordinated web feeding the tracked cohort, NOT the cohort's own
+      funders and NOT random retail. One clearly ETH-loaded source: `0x064048aca1` funded with **12 ETH** then converted to
+      pepecoin (the "strange ETH-loaded wallet" pattern the owner flagged). **🔲 NEXT (owner interested): trace the ETH origin
+      of the loaded wallets 1–2 hops (is it one exchange withdrawal / one funder seeding the whole web?), and keep the exit
+      watch running — the status flips the day they touch a CEX.**
   - **✅ ETH-FUNDING ENRICHMENT — BUILT 2026-08-29 (owner: "work on the ETH side… understand the relationship between
     those wallets… if there has been exchanges of funds between them").** The token graph can't see who funded a fresh
     wallet with ETH (a Coinbase→wallet seed). So `scripts/enrich-eth-funding.mjs` finds each surfaced wallet's FIRST
