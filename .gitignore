@@ -1,0 +1,17 @@
+node_modules/
+.DS_Store
+.env
+.env.*
+
+# The large raw transfer archive lives in a GitHub release asset, not git.
+transfers.csv
+delta.csv
+*.csv.gz
+pull.log
+dune/out/
+# prices.csv IS committed (small daily series, refreshed by the onchain-refresh workflow).
+
+# Local build/tmp
+/tmp/
+dist/
+*.log
