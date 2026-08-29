@@ -89,6 +89,23 @@ repo's CLAUDE.md works). Read it first.
 - `kind` drives the liquid/illiquid + exchange-flow split: burn/null → out of supply; bridge → not
   ETH-native float; lp/cex → float.
 
+## ✅ SITE — terminal dashboard scaffolded (2026-08-29)
+- **Vite + React** (`npm run dev` / `build` / `preview`). `index.html` → `src/main.jsx` → `src/App.jsx`.
+  `src/terminal.css` = the dark/mono/green terminal aesthetic (tokens up top). `src/data.js` fetches
+  `onchain.json` (served from `public/`) + format helpers. `src/charts.jsx` = the recharts components.
+- **Shipped charts** (all reading the real `onchain.json`): a KPI strip (price · realized cost basis ·
+  MVRV · supply-in-profit · holders · 1y+ · top-100 · held supply) + **Realized price & floor**, **MVRV**,
+  **Supply in profit**, **HODL waves**, **Concentration**. Every chart has a plain-language question + a
+  method/caveat footer (honesty rail).
+- **⚠ recharts draw-animation lesson:** `isAnimationActive={false}` on every Line/Area — not just so
+  screenshots aren't captured mid-animation (all series stop at the same x = the tell), but because a data
+  terminal shouldn't re-animate on every load. Keep it off.
+- **Verified on real Chromium** (`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` + playwright-core,
+  installed only for the check then removed): desktop + iPhone-13 viewport, **0 horizontal overflow**,
+  5 charts + 8 KPIs render. Screenshot method is the valid check here (build passing ≠ renders).
+- **🔲 NEXT:** more charts (URPD, liveliness, NRPL, SOPR, cohort/exit-flow, cex-flow, whales), a proper
+  terminal landing, routing/gallery, the 3D city, and the ⚠ 557 KB recharts bundle wants code-splitting.
+
 ## 🔲 ROADMAP (what's left to clone from SPX)
 1. **Price series** — a pepecoin/USD daily `day,price` CSV back to launch for cost-basis USD
    valuation (CoinGecko "max" for the coin, or a DEX-reconstructed series). ⚠ Verify coverage/

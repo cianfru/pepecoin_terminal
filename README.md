@@ -48,7 +48,9 @@ decimals-18 path (34/34 unit tests pass; a synthetic run reconciles exactly). Wh
 - [x] **First real `onchain.json`** — validated (holders 16.5k, MVRV 0.15×, top-100 57.8%)
 - [x] **Incremental daily refresh** — `.github/workflows/onchain.yml` (release-asset archive + RPC delta)
 - [~] `EXCLUDE_LABELS` — burn, MEXC, Gate.io, routers, Uniswap V2 LP done; a few small wallets left to verify
-- [ ] The site: charts, the terminal landing, the 3D city
+- [~] **The site** — Vite + React terminal dashboard live (`npm run dev` / `npm run build`): KPI strip +
+  5 flagship charts (realized price & floor, MVRV, supply-in-profit, HODL waves, concentration) reading
+  `public/onchain.json`. Mobile-verified (no overflow). Next: more charts, a proper landing, the 3D city.
 - [ ] Vercel deploy
 
 ### Why not BigQuery?
