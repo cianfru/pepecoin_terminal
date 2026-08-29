@@ -206,6 +206,29 @@ heavily-speculated coin.
     real daily price (`price-series.json`, cropped to the wallet's active window) drawn as a white line UNDER the
     buy(green)/sell(red) orbs, so you see each trade against where price actually was. We DO have a price feed
     (`prices.csv` → `price-series.json`); the old version just wasn't plotting it.
+  - **✅✅ BUY-THEN-ROUTE + COORDINATION MAP + CAPITAL/CROSS-TOKEN OVERLAP — BUILT 2026-08-29 (owner: "wire in [the
+    sock-puppet detection], make the cohort human-legible with bubbles + connectors, Zerion-style capital cards, and check
+    overlap with GME / BOOE which this crew also pump/dumps").** Three things:
+    - **Buy-then-route (operator-primed) detection — folded into `build-smart-money.mjs`.** A rally buyer that BOUGHT on the
+      DEX and then FORWARDED the tokens into the operator cohort is markup plumbing, not demand. New rally category `primed`
+      + `rally.operatorNet` / `rally.retailNet` split (labelled routers/contracts excluded so a router isn't mistaken for a
+      sock-puppet). Found **3 exact-pass-through sock-puppets** (`0x279b…` 295k→295k, `0x57ab…` 139k→139k, `0x5f77…`
+      22k→22k). Result: operator-adjacent ~$189k vs **genuine retail ~$1.2M** — real retail did most of it; operators lit the
+      fuse. The rally panel now shows the corrected split.
+    - **Coordination Map — `CohortMapPanel` (🗺️, window `map`, desktop + Start).** A force-directed bubble graph: each wallet
+      a bubble sized by the CAPITAL it controls, connectors typed by link (amber=shared ETH funder · cyan=shared token seeder
+      · green=direct transfer · red-dashed=buy→route). Colours: insider / cluster / primed / funder-seeder hub. Hover → a
+      capital card (ETH · PEPECOIN · GME · BOOE · total); click → the wallet drill-down (which carries Etherscan + Zerion
+      links). Self-contained SVG + a small force sim in `buildGraph` (no graph lib). Reads smart-money.json + wallet-capital.json.
+    - **Capital + cross-token overlap — `build-wallet-capital.mjs` (Blockscout, keyless).** Per cohort wallet: ETH + ERC-20
+      holdings → capital USD + top holdings, and flags holdings of **GME (`0xc56c7a0e…`)** and **BOOE / Book of Ethereum
+      (`0x289ff002…`)** by contract address. **⚠ SCAM-PRICE GUARD:** Blockscout prices obscure/spoofed tokens with garbage
+      rates (one inflated a wallet to $112M) — so untrusted tokens are capped at $25k, blue-chips (WETH/USDC/USDT/DAI/WBTC +
+      pepe/gme/booe) counted full, wallets >$3M flagged `whale` (likely infra/OTC swept in by clustering) and the headline
+      total winsorised at $2M/wallet. **⭐ OVERLAP FINDING: 11 of 76 cohort wallets also hold GME, 2 hold BOOE** — and
+      `0xcf2c0423…` (the one insider actively buying pepecoin, ~$30k) ALSO holds **$29k GME**. Confirms the owner's intel that
+      this crew runs the same playbook across GME/BOOE. **🔲 NEXT: pull GME/BOOE TRANSFER history to see if the SAME wallets
+      traded those pumps the same way (buy-early → sell-top → re-stage), and add them to the map as a multi-token overlay.**
   - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
     repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
     answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**

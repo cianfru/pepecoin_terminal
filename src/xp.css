@@ -203,3 +203,16 @@ body {
 .clus-row:first-child { border-top: 0; }
 .clus-row .cv { color: #9fd7b4; } .clus-row .cv.neg { color: #fca5a5; }
 .clus-why { color: #6f9a80; font-size: 10.5px; }
+
+/* coordination map (bubble + connector graph) */
+.glegend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-family: var(--mono); font-size: 11px; color: #9fd7b4; margin: 2px 2px 8px; }
+.glegend .gd { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.gwrap { position: relative; border: 1px solid var(--winln); background: radial-gradient(120% 90% at 50% 40%, #0c1712 0%, #081109 100%); }
+.gcard { position: absolute; pointer-events: none; z-index: 5; min-width: 190px; max-width: 240px; background: #0b140e;
+  border: 1px solid var(--pepe); box-shadow: 0 6px 20px rgba(0,0,0,.5); padding: 9px 11px; font-family: var(--mono); }
+.gcard .gc-h { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--pepe); }
+.gcard .gc-a { font-size: 12px; color: var(--ink); margin: 2px 0 6px; }
+.gcard .gc-cap { font-size: 18px; font-weight: 600; color: var(--ink); }
+.gcard .gc-cap .gc-sub { font-size: 10px; font-weight: 400; color: #6f9a80; }
+.gcard .gc-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11.5px; color: #bfe6ce; margin-top: 3px; }
+.gcard .gc-n { color: #6f9a80; font-size: 10px; margin-top: 7px; line-height: 1.4; }

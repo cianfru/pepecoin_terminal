@@ -5,6 +5,7 @@ import {
 import {
   useOnchain, useJson, last, fmtUsd, fmtPct, fmtX, fmtNum, fmtTok, shortAddr, shortDate,
 } from "./data.js";
+import { useState, useMemo, useRef } from "react";
 
 const GRID = "#141b24";
 const AXIS = "#5f6d7c";
@@ -725,6 +726,7 @@ export function SmartMoneyPanel() {
 const ES = (a) => <a href={`https://etherscan.io/address/${a}`} target="_blank" rel="noreferrer" title="open on Etherscan" style={{ color: C.dim, marginLeft: 6, fontSize: 10 }}>etherscan ↗</a>;
 const CATMETA = {
   returning: { label: "returning", color: C.cyan, note: "a person who had sold out and re-entered" },
+  primed: { label: "operator-primed", color: C.warn, note: "bought on the market then forwarded the tokens straight into the staging cohort — markup plumbing, not real demand" },
   routed: { label: "routed retail", color: C.lime, note: "aggregated retail through a DEX router (MetaMask / Uniswap / Paraswap / 0x)" },
   new: { label: "new wallet", color: C.green, note: "a person's first-ever pepecoin, in the rally" },
   existing: { label: "existing holder", color: C.dim, note: "a person who already held, added more" },
@@ -743,7 +745,8 @@ export function RallyPanel() {
   const infra = new Set(["routed", "mm", "vault", "contract"]);
   const catTag = (c) => { const m = CATMETA[c] || { label: c, color: C.dim }; return <span title={m.note} style={{ color: m.color, fontSize: 10.5 }}>{infra.has(c) ? "⚙ " : ""}{m.label}</span>; };
   const insiderPct = (r.byCat.find((c) => c.cat === "insider") || {}).pct || 0;
-  const retailPct = r.byCat.filter((c) => ["returning", "routed", "new", "existing"].includes(c.cat)).reduce((a, c) => a + c.pct, 0);
+  const opPct = r.operatorNet != null && r.totNet ? Math.round(100 * r.operatorNet / r.totNet) : insiderPct;
+  const retailPct = 100 - opPct;
   return (
     <div>
       <p className="q">Who actually pushed the price up in this rally — every wallet that <b>net-bought on the DEX</b> since {r.from}, ranked and classified. Contract buyers are labelled (a smart-account wallet is a person; a router is aggregated retail; an arb bot is not). Click any address for its full buy/sell history, or open it on Etherscan.</p>
@@ -751,11 +754,11 @@ export function RallyPanel() {
         <div className="ov-kpi"><div className="k">net pulled from pool</div><div className="v">{money(r.poolOutUsd)}</div><div className="n">{fmtTok(r.poolOutNet)} tokens — that's all it took</div></div>
         <div className="ov-kpi"><div className="k">distinct net buyers</div><div className="v">{fmtNum(r.buyers)}</div><div className="n">a crowd, not one whale</div></div>
         <div className="ov-kpi"><div className="k">top 10 buyers</div><div className="v">{r.top10Pct}%</div><div className="n">top one just {r.top1Pct}%</div></div>
-        <div className="ov-kpi"><div className="k">insiders' share</div><div className="v warn">{insiderPct}%</div><div className="n">early-sell cohort</div></div>
+        <div className="ov-kpi"><div className="k">operator-adjacent</div><div className="v warn">{opPct}%</div><div className="n">insiders + primed sock-puppets</div></div>
       </div>
 
       <div className="ov-lead" style={{ margin: "0 2px 14px" }}>
-        The price 4×'d on only <b>{money(r.poolOutUsd)}</b> of net tokens leaving a thin pool — that's all it took. It came from <b>{r.buyers} dispersed wallets</b> (top buyer just {r.top1Pct}%), not one actor. With contract buyers resolved, <b style={{ color: C.lime }}>~{Math.round(retailPct)}% is dispersed retail</b> (returning traders, new wallets, holders adding, and retail routed through MetaMask/Uniswap/Paraswap), <b style={{ color: C.warn }}>{insiderPct}% the insiders</b>, and almost none is arb/MM bots. This reads as a <b>low-liquidity retail markup</b>, not informed accumulation.
+        The price 4×'d on only <b>{money(r.poolOutUsd)}</b> of net tokens leaving a thin pool — that's all it took. It came from <b>{r.buyers} dispersed wallets</b> (top buyer just {r.top1Pct}%), not one actor. After resolving contract buyers <i>and</i> subtracting <b style={{ color: C.warn }}>buy-then-route sock-puppets</b> that marked price up to feed the staged bag, the split is <b style={{ color: C.lime }}>~{retailPct}% genuine retail</b> (~{money((r.retailNet || 0) * d.spot)}) vs <b style={{ color: C.warn }}>~{opPct}% operator-adjacent</b> (~{money((r.operatorNet || 0) * d.spot)} — insiders + primers). Real retail did most of the buying; the operators lit the fuse and are staged to sell into it.
       </div>
 
       <div className="buy-h" style={{ color: C.cyan }}>◆ net market buying by who</div>
@@ -838,6 +841,99 @@ export function InsiderWatchPanel() {
   );
 }
 
+// ── Coordination Map: the operator cohort as bubbles (sized by capital) + connectors (shared funder / seeder /
+//    token transfer / buy-then-route). Hover a bubble for its capital card; click to open its full history.
+const GHASH = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; };
+const EDGEC = { fund: C.amber, seed: C.cyan, xfer: "#5fbf87", route: C.warn };
+function buildGraph(sm, cap) {
+  const cyc = new Set((sm.cycle || []).map((r) => r.a));
+  const nodes = new Map(), edges = [];
+  const capOf = (a) => cap?.wallets?.[a];
+  const addW = (a, role, cluster) => { let n = nodes.get(a); if (!n) { const c = capOf(a); nodes.set(a, n = { id: a, kind: role, cluster, cap: c?.capUsd || 0, holds: c?.holds || {}, top: c?.top || [], eth: c?.ethUsd || 0, whale: c?.whale }); } else if (role === "insider") n.kind = "insider"; return n; };
+  const addH = (id, label) => { let n = nodes.get(id); if (!n) nodes.set(id, n = { id, kind: "hub", label, cap: 0, holds: {} }); return n; };
+  for (const c of sm.clusters || []) {
+    for (const m of c.members) addW(m.a, cyc.has(m.a) ? "insider" : "member", c.id);
+    for (const sd of c.seeders || []) { const h = addH("seed:" + sd, sd); for (const m of c.members) if (m.seeder === sd) edges.push({ a: m.a, b: h.id, kind: "seed" }); }
+    for (const f of c.ethFunders || []) { const h = addH("fund:" + f, f); for (const m of c.members) if (m.ethFunder === f) edges.push({ a: m.a, b: h.id, kind: "fund" }); }
+    for (const [f, t] of c.links || []) edges.push({ a: f, b: t, kind: "xfer" });
+  }
+  for (const r of sm.cycle || []) if (!nodes.has(r.a)) addW(r.a, "insider", null);
+  for (const p of sm.rally?.primed || []) { addW(p.a, "primed", null); if (p.to && nodes.has(p.to)) edges.push({ a: p.a, b: p.to, kind: "route" }); }
+  const N = [...nodes.values()], idx = new Map(N.map((n) => [n.id, n]));
+  const W = 820, H = 560;
+  N.forEach((n, i) => { const h = GHASH(n.id); n.x = W / 2 + Math.cos(h) * (40 + (i % 19) * 17); n.y = H / 2 + Math.sin(h * 1.7) * (40 + (i % 13) * 17); n.vx = 0; n.vy = 0; n.r = n.kind === "hub" ? 4 : Math.max(6, Math.min(26, 6 + Math.sqrt((n.cap || 0) / 900))); });
+  const E = edges.filter((e) => idx.has(e.a) && idx.has(e.b));
+  for (let it = 0; it < 320; it++) {
+    const cool = 1 - it / 320;
+    for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) { const a = N[i], b = N[j]; let dx = a.x - b.x, dy = a.y - b.y; let d2 = dx * dx + dy * dy || 1; const d = Math.sqrt(d2); const f = 2600 / d2; dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f; }
+    for (const e of E) { const a = idx.get(e.a), b = idx.get(e.b); let dx = b.x - a.x, dy = b.y - a.y; const d = Math.sqrt(dx * dx + dy * dy) || 1; const f = (d - 58) * 0.03; dx /= d; dy /= d; a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f; }
+    for (const n of N) { n.vx += (W / 2 - n.x) * 0.004; n.vy += (H / 2 - n.y) * 0.004; n.x += n.vx * cool * 0.5; n.y += n.vy * cool * 0.5; n.vx *= 0.82; n.vy *= 0.82; n.x = Math.max(n.r + 4, Math.min(W - n.r - 4, n.x)); n.y = Math.max(n.r + 4, Math.min(H - n.r - 4, n.y)); }
+  }
+  return { nodes: N, edges: E, idx, W, H };
+}
+export function CohortMapPanel() {
+  const feed = useJson("smart-money.json");
+  const capFeed = useJson("wallet-capital.json");
+  const g = useMemo(() => (feed.data ? buildGraph(feed.data, capFeed.data) : null), [feed.data, capFeed.data]);
+  const [hover, setHover] = useState(null);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const wrap = useRef(null);
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!g) return <div className="cstate">loading…</div>;
+  const ov = capFeed.data?.overlap;
+  const fill = (n) => n.kind === "insider" ? C.warn : n.kind === "primed" ? C.amber : n.kind === "member" ? C.cyan : "#39434f";
+  const ring = (n) => n.holds?.gme && n.holds?.booe ? "#fbbf24" : n.holds?.gme ? C.lime : n.holds?.booe ? "#a78bfa" : null;
+  const onMove = (e) => { const b = wrap.current?.getBoundingClientRect(); if (b) setPos({ x: e.clientX - b.left, y: e.clientY - b.top }); };
+  return (
+    <div>
+      <p className="q">The operator cohort as a map. Each <b>bubble is a wallet</b>, sized by the <b>capital it controls</b>; <b>lines are the links</b> that tie them — a shared ETH funder, a shared token seeder, a direct transfer, or a buy-then-route feed. Bubbles ringed <span style={{ color: C.lime }}>green</span> also hold <b>GME</b>, <span style={{ color: "#a78bfa" }}>purple</span> hold <b>BOOE</b>. Hover for the wallet's holdings; click to open it.</p>
+      {ov && <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="ov-kpi"><div className="k">cohort capital</div><div className="v">{money(capFeed.data.totalCapUsd)}</div><div className="n">across {ov.total} wallets</div></div>
+        <div className="ov-kpi"><div className="k">also hold GME</div><div className="v" style={{ color: C.lime }}>{ov.gme}</div><div className="n">of {ov.total} · overlap</div></div>
+        <div className="ov-kpi"><div className="k">also hold BOOE</div><div className="v" style={{ color: "#a78bfa" }}>{ov.booe}</div><div className="n">of {ov.total} · overlap</div></div>
+        <div className="ov-kpi"><div className="k">links drawn</div><div className="v">{fmtNum(g.edges.length)}</div><div className="n">funder / seeder / xfer / route</div></div>
+      </div>}
+      <div className="glegend">
+        <span><i className="gd" style={{ background: C.warn }} />insider</span>
+        <span><i className="gd" style={{ background: C.cyan }} />cluster wallet</span>
+        <span><i className="gd" style={{ background: C.amber }} />primed sock-puppet</span>
+        <span><i className="gd" style={{ background: "#39434f" }} />funder / seeder</span>
+        <span><b style={{ color: EDGEC.fund }}>—</b> ETH funder</span>
+        <span><b style={{ color: EDGEC.seed }}>—</b> token seeder</span>
+        <span><b style={{ color: EDGEC.xfer }}>—</b> transfer</span>
+        <span><b style={{ color: EDGEC.route }}>—</b> buy→route</span>
+      </div>
+      <div ref={wrap} className="gwrap" onMouseMove={onMove}>
+        <svg viewBox={`0 0 ${g.W} ${g.H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+          {g.edges.map((e, i) => { const a = g.idx.get(e.a), b = g.idx.get(e.b); return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={EDGEC[e.kind]} strokeWidth={e.kind === "route" ? 1.6 : 1} strokeOpacity={0.5} strokeDasharray={e.kind === "route" ? "4 3" : undefined} />; })}
+          {g.nodes.map((n) => { const rc = ring(n); return (
+            <g key={n.id} transform={`translate(${n.x},${n.y})`} style={{ cursor: n.kind === "hub" ? "default" : "pointer" }}
+               onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover((h) => (h === n ? null : h))}
+               onClick={() => n.kind !== "hub" && openWin("wallet:" + n.id)}>
+              {n.kind === "hub"
+                ? <rect x={-n.r} y={-n.r} width={n.r * 2} height={n.r * 2} transform="rotate(45)" fill={fill(n)} stroke="#1a222c" />
+                : <circle r={n.r} fill={fill(n)} fillOpacity={0.85} stroke={rc || "#0c1510"} strokeWidth={rc ? 2.2 : 1} />}
+            </g>); })}
+        </svg>
+        {hover && <div className="gcard" style={{ left: Math.min(pos.x + 14, 560), top: pos.y + 12 }}>
+          {hover.kind === "hub"
+            ? <><div className="gc-h">{hover.id.startsWith("fund:") ? "ETH funder" : "token seeder"}</div><div className="gc-a">{shortAddr(hover.label)}</div><div className="gc-n">funds/seeds multiple cohort wallets — a shared parent = common control</div></>
+            : <><div className="gc-h" style={{ color: fill(hover) }}>{hover.kind === "insider" ? "insider (early seller)" : hover.kind === "primed" ? "primed sock-puppet" : "cluster wallet"}</div>
+                <div className="gc-a">{shortAddr(hover.id)}</div>
+                <div className="gc-cap">{money(hover.cap)}<span className="gc-sub"> total capital</span></div>
+                <div className="gc-row"><span>ETH</span><span>{money(hover.eth)}</span></div>
+                {hover.holds?.pepe && <div className="gc-row"><span>PEPECOIN</span><span>{money(hover.holds.pepe.usd)}</span></div>}
+                {hover.holds?.gme && <div className="gc-row" style={{ color: C.lime }}><span>GME</span><span>{money(hover.holds.gme.usd)}</span></div>}
+                {hover.holds?.booe && <div className="gc-row" style={{ color: "#a78bfa" }}><span>BOOE</span><span>{money(hover.holds.booe.usd)}</span></div>}
+                {hover.whale && <div className="gc-n" style={{ color: C.amber }}>⚑ large blue-chip holdings — likely a whale / infra wallet, capital capped</div>}
+                <div className="gc-n">click to open history · then Etherscan / Zerion</div></>}
+        </div>}
+      </div>
+      <p className="foot">Capital + token holdings are read live from the chain (ETH + ERC-20 balances). A tight knot of bubbles joined by <span style={{ color: EDGEC.fund }}>funder</span> and <span style={{ color: EDGEC.seed }}>seeder</span> lines is one operator's fleet; a <span style={{ color: EDGEC.route }}>buy→route</span> line is a wallet that bought on the market and fed the staged bag. Rings show who's <i>also</i> in GME / BOOE — the same crew's other plays. Not proof of one owner; it's the network, drawn so you can trace it.</p>
+    </div>
+  );
+}
+
 export function WalletDetail({ addr }) {
   const feed = useJson("smart-money.json");
   const pf = useJson("price-series.json");
@@ -900,7 +996,7 @@ export function WalletDetail({ addr }) {
   );
 }
 
-const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel };
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel, map: CohortMapPanel };
 export function winContent(id) {
   if (id && id.startsWith("wallet:")) return <WalletDetail addr={id.slice(7)} />;
   const P = PANELS[id];

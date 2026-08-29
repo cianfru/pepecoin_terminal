@@ -273,13 +273,26 @@ async function main() {
   //    you can see it wasn't the insiders: contract (router/MM/arb/aggregator), returning (sold out then back),
   //    new wallet (first-ever in the rally), existing holder, insider (the cycle cohort). Every row is clickable.
   const cycleSet = new Set(cycle.map((r) => r.a));
+  // the OPERATOR cohort = the early-sellers + every coordinated-cluster member (who the exit-watch tracks).
+  const opCohort = new Set(cycleSet);
+  for (const c of clusters) for (const m of c.members) opCohort.add(m.a);
+  // ── BUY-THEN-ROUTE (operator-primed markup): a wallet that BOUGHT on the DEX in the rally and then FORWARDED
+  //    tokens into the operator cohort is not genuine retail — it's plumbing that marks price up and feeds the
+  //    staged bag. Measure it (rally-window sends into the cohort) so we can subtract it from the "retail" count.
+  const sentToCohort = new Map(), sentTarget = new Map(); // total forwarded, and the cohort wallet it fed most
+  for (const t of tx) { if (t.ts < RALLY) continue; if (opCohort.has(t.to) && !opCohort.has(t.from) && !ex(t.from)) {
+    sentToCohort.set(t.from, (sentToCohort.get(t.from) || 0) + t.amt);
+    const cur = sentTarget.get(t.from); if (!cur || t.amt > cur.amt) sentTarget.set(t.from, { to: t.to, amt: t.amt });
+  } }
+  const infraKind = (a) => { const k = ctrLabels[a]?.kind; return k === "router" || k === "mm" || k === "vault"; }; // labelled infra never counts as a sock-puppet
+  const isPrimed = (r) => r.rMktBuy > 0 && (sentToCohort.get(r.a) || 0) > 0.25 * r.rMktBuy && !opCohort.has(r.a) && !infraKind(r.a);
   // a contract's label refines the category: a smart-account/Safe is a PERSON (fall through to person cats);
   // a router = aggregated retail; mm/arb = a bot; vault = a protocol; unknown = contract.
-  const personCat = (r) => cycleSet.has(r.a) ? "insider" : r.reentered ? "returning" : r.firstTs >= RALLY ? "new" : "existing";
+  const personCat = (r) => cycleSet.has(r.a) ? "insider" : isPrimed(r) ? "primed" : r.reentered ? "returning" : r.firstTs >= RALLY ? "new" : "existing";
   const catOf = (r) => {
     if (contractCache[r.a] === true) {
       const k = ctrLabels[r.a]?.kind;
-      if (k === "account") return personCat(r);      // smart-account wallet = a person
+      if (k === "account") return personCat(r);      // smart-account wallet = a person (or primed sock-puppet)
       if (k === "router") return "routed";           // aggregated retail through a DEX router
       if (k === "mm") return "mm";                    // market-maker / arb bot
       if (k === "vault") return "vault";              // a DeFi protocol
@@ -289,6 +302,7 @@ async function main() {
   };
   const buyers = rows.filter((r) => r.rMktNet > 0).sort((a, b) => b.rMktNet - a.rMktNet)
     .map((r) => ({ a: r.a, net: rnd(r.rMktNet), buy: rnd(r.rMktBuy), usd: rnd(r.rMktNet * spot), cat: catOf(r),
+      routed: rnd(sentToCohort.get(r.a) || 0), // tokens this buyer forwarded into the operator cohort
       contract: contractCache[r.a] === true, ctrKind: ctrLabels[r.a]?.kind || null, ctrLabel: ctrLabels[r.a]?.label || null,
       first: r.first, bag: rnd(r.bal) }));
   const totNet = buyers.reduce((s, b) => s + b.net, 0) || 1;
@@ -299,8 +313,12 @@ async function main() {
     poolOutUsd: rnd((poolOut - poolIn) * spot), buyers: buyers.length, totNet: rnd(totNet), totUsd: rnd(totNet * spot),
     top1Pct: rnd(100 * (buyers[0]?.net || 0) / totNet), top10Pct: rnd(100 * buyers.slice(0, 10).reduce((s, b) => s + b.net, 0) / totNet),
     byCat: Object.entries(byCat).sort((a, b) => b[1].net - a[1].net).map(([cat, v]) => ({ cat, n: v.n, net: rnd(v.net), usd: rnd(v.net * spot), pct: rnd(100 * v.net / totNet) })),
+    // operator-adjacent = insiders themselves + buy-then-route sock-puppets; genuine retail = everything else
+    operatorNet: rnd(buyers.filter((b) => b.cat === "insider" || b.cat === "primed").reduce((s, b) => s + b.net, 0)),
+    primed: buyers.filter((b) => b.cat === "primed").map((b) => ({ a: b.a, buy: b.buy, routed: b.routed, usd: rnd(b.buy * spot), first: b.first, to: sentTarget.get(b.a)?.to || null })),
     top: buyers.slice(0, 60),
   };
+  rally.retailNet = rnd(totNet - rally.operatorNet);
 
   // second pass: buy/sell timeline for surfaced wallets + the top rally buyers (so every shown wallet is clickable)
   const keep = new Set([...members, ...rally.top.map((b) => b.a)]);
