@@ -1,154 +1,231 @@
-import { useEffect, useState } from "react";
-import { useOnchain, last, fmtUsd, fmtNum, fmtPct, fmtX, fmtTok } from "./data.js";
-import { GROUPS, CHARTS, FEATURED, chartById, chartsInGroup } from "./charts-catalog.js";
-import { chartEl, Spark, SPARK } from "./charts.jsx";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useOnchain, last, fmtUsd } from "./data.js";
+import { GROUPS, CHARTS, chartById, chartsInGroup } from "./charts-catalog.js";
+import { winContent } from "./charts.jsx";
 
-const CA = "0xA9E8aCf069C58aEc8825542845Fd754e41a9489A";
+// icon (emoji) per window id
+const ICON = {
+  overview: "🖥️", buyers: "💰", about: "ℹ️",
+  realized: "📉", mvrv: "⚖️", nupl: "🧮", supplyprofit: "💚",
+  hodl: "🌊", lthsth: "⏳", holders: "👥", wealthtiers: "🪙",
+  urpd: "🧱", urpdage: "🗺️",
+  concentration: "🎯", gini: "📐", whales: "🐋", clusters: "🕸️",
+  sopr: "🔁", nrpl: "💵", liveliness: "⚡", cexsupply: "🏦",
+};
+const TITLE = (id) => (id === "overview" ? "Overview" : id === "buyers" ? "Who's Buying" : id === "about" ? "About" : (chartById(id)?.title || id));
+const DEFSIZE = (id) => (id === "overview" ? [740, 580] : id === "buyers" ? [760, 540] : id === "about" ? [480, 380] : id === "whales" || id === "clusters" ? [720, 520] : [680, 480]);
 
-// ── tiny query-string router (no dependency) ──
-function parse() {
-  const p = new URLSearchParams(location.search);
-  return { view: p.get("view") || "home", chart: p.get("chart") || null };
-}
-function useRoute() {
-  const [r, setR] = useState(parse);
+// desktop icons (curated)
+const DESKTOP = ["overview", "buyers", "realized", "mvrv", "hodl", "urpd", "whales", "concentration", "about"];
+
+const useMobile = () => {
+  const [m, setM] = useState(() => matchMedia("(max-width:720px), (pointer:coarse)").matches);
   useEffect(() => {
-    const on = () => setR(parse());
-    window.addEventListener("popstate", on);
-    return () => window.removeEventListener("popstate", on);
+    const mq = matchMedia("(max-width:720px), (pointer:coarse)");
+    const on = () => setM(mq.matches);
+    mq.addEventListener("change", on); window.addEventListener("resize", on);
+    return () => { mq.removeEventListener("change", on); window.removeEventListener("resize", on); };
   }, []);
-  const go = (params) => {
-    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
-    history.pushState({}, "", qs ? "?" + qs : location.pathname);
-    setR(parse());
-    window.scrollTo(0, 0);
-  };
-  return [r, go];
-}
+  return m;
+};
 
-function Link({ to, className, children }) {
-  const [, go] = useRouteCtx();
-  const href = "?" + new URLSearchParams(Object.entries(to).filter(([, v]) => v)).toString();
-  return <a href={href} className={className} onClick={(e) => { e.preventDefault(); go(to); }}>{children}</a>;
-}
-
-// share the router via module-level holder (single App instance)
-let _go = () => {};
-let _route = parse();
-const useRouteCtx = () => [_route, _go];
-
-function Nav({ route }) {
-  return (
-    <nav className="tnav">
-      <Link to={{}} className="brand">pepecoin<span className="c">·</span>terminal</Link>
-      <div className="tnav-links">
-        <Link to={{}} className={route.view === "home" && !route.chart ? "on" : ""}>home</Link>
-        <Link to={{ view: "charts" }} className={route.view === "charts" || route.chart ? "on" : ""}>charts</Link>
+// ── boot / login ──
+const BOOT_LINES = [
+  "PEPECOIN BIOS v4.20 — Plug and Pepe",
+  "Detecting on-chain memory ......... 675,019 transfers OK",
+  "FIFO cost-basis engine ............ OK",
+  "Mounting /public/onchain.json ..... daily OK",
+  "Loading valuation desktop ......... OK",
+  "",
+  "PEPECOIN Init Completed.",
+];
+function Boot({ onEnter }) {
+  const [n, setN] = useState(0);
+  useEffect(() => { if (n >= BOOT_LINES.length) return; const t = setTimeout(() => setN(n + 1), n === 0 ? 250 : 230); return () => clearTimeout(t); }, [n]);
+  const done = n >= BOOT_LINES.length;
+  if (done) return (
+    <div className="boot-enter" onClick={onEnter}>
+      <div className="enter-card">
+        <div className="frog">🐸</div>
+        <div className="ttl">Pepecoin Terminal</div>
+        <div className="sb">open · reproducible · on-chain valuation desktop</div>
+        <button className="enter-btn" onClick={onEnter}>Enter ▸</button>
       </div>
-    </nav>
+    </div>
   );
-}
-
-function Kpi({ k, v, n, cls }) {
-  return <div className="kpi"><div className="k">{k}</div><div className={"v " + (cls || "")}>{v}</div>{n && <div className="n">{n}</div>}</div>;
-}
-
-function KpiStrip() {
-  const { data: rows } = useOnchain();
-  if (!rows) return <div className="kpis"><div className="kpi"><div className="k">loading…</div></div></div>;
-  const c = last(rows);
   return (
-    <div className="kpis">
-      <Kpi k="price" v={fmtUsd(c.spot)} n={"as of " + c.d} />
-      <Kpi k="realized cost basis" v={fmtUsd(c.rp)} n="avg held-coin cost" cls="good" />
-      <Kpi k="MVRV" v={fmtX(c.mvrv)} n={c.mvrv < 1 ? "underwater" : "above cost"} cls={c.mvrv < 1 ? "warn" : "good"} />
-      <Kpi k="supply in profit" v={fmtPct(c.sip)} n="of held supply" />
-      <Kpi k="holders" v={fmtNum(c.holders)} n="ETH, ≥ dust" />
-      <Kpi k="held 1y+" v={fmtPct(c.age[4])} n="diamond base" cls="good" />
-      <Kpi k="top-100" v={fmtPct(c.top100)} n="concentration" />
-      <Kpi k="held supply" v={fmtTok(c.heldTokens)} n="tokens, ex-infra" />
+    <div className="boot">
+      {BOOT_LINES.slice(0, n).map((l, i) => <div className="bl" key={i}>{l}</div>)}
+      <div className="bl cur" />
     </div>
   );
 }
 
-function Tile({ chart, rows }) {
-  const sp = SPARK[chart.id];
+// ── one window ──
+function Win({ w, mobile, focused, onFocus, onClose, onMin, onMax, onDrag, onResize }) {
+  const style = mobile || w.max
+    ? { left: 0, top: 0, right: 0, bottom: 0, zIndex: w.z }
+    : { left: w.x, top: w.y, width: w.w, height: w.h, zIndex: w.z };
   return (
-    <Link to={{ chart: chart.id }} className="tile">
-      <div className="tile-top"><span className="tile-title">{chart.title}</span><span className="tile-go">→</span></div>
-      <div className="tile-blurb">{chart.blurb}</div>
-      {sp ? <Spark rows={rows} pick={sp.pick} color={sp.color} /> : <div className="spark ph" />}
-    </Link>
-  );
-}
-
-function Home() {
-  return (
-    <>
-      <KpiStrip />
-      <p className="lead">
-        An open, reproducible on-chain read on <b>pepecoin</b>. Every number is reconstructed from the
-        public Ethereum transfer history with a local FIFO cost-basis engine — no black box.
-        <Link to={{ view: "charts" }} className="lead-cta"> Browse all {CHARTS.length} charts →</Link>
-      </p>
-      <div className="featgrid">
-        {FEATURED.map((c) => <div key={c.id}>{chartEl(c.id)}<Link to={{ chart: c.id }} className="feat-more">open {c.title} →</Link></div>)}
+    <div className={"win" + (w.min ? " min" : "") + ((mobile || w.max) ? " max" : "") + (focused ? "" : " blur")} style={style} onMouseDown={onFocus}>
+      <div className="win-tb" onPointerDown={(e) => !mobile && !w.max && onDrag(e, w.id)} onDoubleClick={() => !mobile && onMax(w.id)}>
+        <span className="win-ico">{ICON[w.id] || "▪"}</span>
+        <span className="win-title">{TITLE(w.id)}</span>
+        <span className="win-btns">
+          <button className="wb" title="minimize" onClick={(e) => { e.stopPropagation(); onMin(w.id); }}>_</button>
+          {!mobile && <button className="wb" title="maximize" onClick={(e) => { e.stopPropagation(); onMax(w.id); }}>▢</button>}
+          <button className="wb x" title="close" onClick={(e) => { e.stopPropagation(); onClose(w.id); }}>✕</button>
+        </span>
       </div>
-      <p className="note">
-        Data as of the latest daily refresh. On-chain reads are valuation / position statements, never buy
-        or sell signals. Concentration is an upper bound while the infrastructure exclude list is verified.
-      </p>
-    </>
+      <div className="win-body">{winContent(w.id)}</div>
+      {!mobile && !w.max && <div className="win-rz" onPointerDown={(e) => onResize(e, w.id)} />}
+    </div>
   );
 }
 
-function Gallery({ rows }) {
+// ── start menu ──
+function StartMenu({ onOpen, onClose }) {
   return (
     <>
-      <h1 className="page-h">Charts</h1>
-      <p className="page-sub">{CHARTS.length} on-chain charts across {GROUPS.length} families. All reconstructed from public transfer data.</p>
-      {GROUPS.map((g) => (
-        <section key={g.id} className="grp">
-          <div className="grp-h"><h2>{g.name}</h2><span>{g.blurb}</span></div>
-          <div className="tilegrid">{chartsInGroup(g.id).map((c) => <Tile key={c.id} chart={c} rows={rows} />)}</div>
-        </section>
-      ))}
-    </>
-  );
-}
-
-function ChartPage({ id }) {
-  const c = chartById(id);
-  if (!c) return <div className="cstate err">unknown chart: {id}</div>;
-  const siblings = chartsInGroup(c.group).filter((s) => s.id !== id);
-  return (
-    <>
-      <Link to={{ view: "charts" }} className="back">← all charts</Link>
-      {chartEl(id)}
-      {siblings.length > 0 && (
-        <div className="more">
-          <span className="more-h">more in {GROUPS.find((g) => g.id === c.group).name.toLowerCase()}</span>
-          <div className="more-links">{siblings.map((s) => <Link key={s.id} to={{ chart: s.id }} className="chip">{s.title}</Link>)}</div>
+      <div style={{ position: "fixed", inset: 0, zIndex: 55 }} onClick={onClose} />
+      <div className="smwrap" onClick={(e) => e.stopPropagation()}>
+        <div className="sm-head"><span className="frog">🐸</span><div><div className="who">pepecoin</div><div className="sub">valuation terminal</div></div></div>
+        <div className="sm-scroll">
+          <div className="sm-grp">desk</div>
+          {["overview", "buyers", "about"].map((id) => (
+            <div className="sm-item" key={id} onClick={() => onOpen(id)}>
+              <span className="ig">{ICON[id]}</span><div><div className="it">{TITLE(id)}</div></div>
+            </div>
+          ))}
+          {GROUPS.map((g) => (
+            <div key={g.id}>
+              <div className="sm-grp">{g.name}</div>
+              {chartsInGroup(g.id).map((c) => (
+                <div className="sm-item" key={c.id} onClick={() => onOpen(c.id)}>
+                  <span className="ig">{ICON[c.id] || "▪"}</span>
+                  <div><div className="it">{c.title}</div><div className="id">{c.blurb}</div></div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
-      )}
+        <div className="sm-foot">{CHARTS.length} charts · reconstructed from public Ethereum data</div>
+      </div>
     </>
+  );
+}
+
+// ── taskbar ──
+function Tray() {
+  const { data: rows } = useOnchain();
+  const [clk, setClk] = useState("");
+  useEffect(() => { const t = setInterval(() => setClk(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })), 1000); setClk(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })); return () => clearInterval(t); }, []);
+  let px = null, up = false;
+  if (rows) { const c = last(rows); px = c.spot; up = rows.length > 1 && c.spot >= rows[rows.length - 2].spot; }
+  return (
+    <div className="tray">
+      {px != null && <div className="px"><span className="lbl">PEPE </span><span className={up ? "up" : "dn"}>{fmtUsd(px)} {up ? "▲" : "▼"}</span></div>}
+      <div className="clk">{clk}</div>
+    </div>
   );
 }
 
 export default function App() {
-  const [route, go] = useRoute();
-  _go = go; _route = route;
-  const { data: rows } = useOnchain();
+  const mobile = useMobile();
+  const [booted, setBooted] = useState(() => { try { return sessionStorage.getItem("pepe-booted") === "1"; } catch { return false; } });
+  const [wins, setWins] = useState([]);
+  const [start, setStart] = useState(false);
+  const zc = useRef(10);
+  const drag = useRef(null);
+
+  const focus = useCallback((id) => setWins((ws) => ws.map((w) => (w.id === id ? { ...w, z: ++zc.current, min: false } : w))), []);
+  const open = useCallback((id) => {
+    setStart(false);
+    setWins((ws) => {
+      const ex = ws.find((w) => w.id === id);
+      if (ex) return ws.map((w) => (w.id === id ? { ...w, z: ++zc.current, min: false } : w));
+      const [dw, dh] = DEFSIZE(id);
+      const n = ws.length;
+      const x = Math.min(60 + n * 28, Math.max(20, window.innerWidth - dw - 20));
+      const y = Math.min(28 + n * 26, Math.max(10, window.innerHeight - dh - 90));
+      return [...ws, { id, x, y, w: dw, h: dh, z: ++zc.current, min: false, max: mobile }];
+    });
+  }, [mobile]);
+  const close = useCallback((id) => setWins((ws) => ws.filter((w) => w.id !== id)), []);
+  const toggleMin = useCallback((id) => setWins((ws) => ws.map((w) => (w.id === id ? { ...w, min: !w.min } : w))), []);
+  const toggleMax = useCallback((id) => setWins((ws) => ws.map((w) => (w.id === id ? { ...w, max: !w.max, z: ++zc.current } : w))), []);
+
+  const startDrag = useCallback((e, id) => {
+    e.preventDefault(); focus(id);
+    const w = wins.find((x) => x.id === id); if (!w) return;
+    drag.current = { id, type: "move", ox: e.clientX - w.x, oy: e.clientY - w.y };
+  }, [wins, focus]);
+  const startResize = useCallback((e, id) => {
+    e.preventDefault(); e.stopPropagation(); focus(id);
+    const w = wins.find((x) => x.id === id); if (!w) return;
+    drag.current = { id, type: "resize", sx: e.clientX, sy: e.clientY, sw: w.w, sh: w.h };
+  }, [wins, focus]);
+  useEffect(() => {
+    const move = (e) => {
+      const d = drag.current; if (!d) return;
+      setWins((ws) => ws.map((w) => {
+        if (w.id !== d.id) return w;
+        if (d.type === "move") return { ...w, x: Math.max(-w.w + 90, Math.min(window.innerWidth - 60, e.clientX - d.ox)), y: Math.max(0, Math.min(window.innerHeight - 80, e.clientY - d.oy)) };
+        return { ...w, w: Math.max(320, d.sw + (e.clientX - d.sx)), h: Math.max(220, d.sh + (e.clientY - d.sy)) };
+      }));
+    };
+    const up = () => { drag.current = null; };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  }, []);
+
+  const enter = () => { try { sessionStorage.setItem("pepe-booted", "1"); } catch {} setBooted(true); open("overview"); };
+  // open overview on first desktop paint if nothing open (post-boot returns)
+  useEffect(() => { if (booted && wins.length === 0) open("overview"); }, [booted]); // eslint-disable-line
+
+  if (!booted) return <Boot onEnter={enter} />;
+
+  const topId = wins.filter((w) => !w.min).sort((a, b) => b.z - a.z)[0]?.id;
+  // on mobile only render the focused window
+  const visible = mobile ? wins.filter((w) => w.id === topId && !w.min) : wins;
+
   return (
-    <div className="wrap">
-      <Nav route={route} />
-      <div className="ca">{CA} · Ethereum · 18 decimals · open &amp; reproducible</div>
-      <hr className="hair" />
-      {route.chart ? <ChartPage id={route.chart} /> : route.view === "charts" ? <Gallery rows={rows} /> : <Home />}
-      <footer className="site-foot">
-        pepecoin terminal · reconstructed from public Ethereum data · methodology open ·
-        <span className="dim"> not financial advice</span>
-      </footer>
+    <div className="os">
+      <div className="desk">
+        {!mobile && (
+          <div className="icons">
+            {DESKTOP.map((id) => (
+              <div className="dicon" key={id} onClick={() => open(id)}>
+                <div className="gl">{ICON[id]}</div><div className="lb">{TITLE(id)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="wm">
+          {visible.map((w) => (
+            <Win key={w.id} w={w} mobile={mobile} focused={w.id === topId}
+              onFocus={() => focus(w.id)} onClose={close} onMin={toggleMin} onMax={toggleMax}
+              onDrag={startDrag} onResize={startResize} />
+          ))}
+        </div>
+      </div>
+
+      {start && <StartMenu onOpen={open} onClose={() => setStart(false)} />}
+
+      <div className="taskbar">
+        <button className={"start" + (start ? " on" : "")} onClick={() => setStart((s) => !s)}>
+          <span className="frog">🐸</span>start
+        </button>
+        <div className="tasks">
+          {wins.map((w) => (
+            <div key={w.id} className={"taskbtn" + (w.id === topId && !w.min ? " on" : "")}
+              onClick={() => (w.id === topId && !w.min ? toggleMin(w.id) : focus(w.id))}>
+              <span>{ICON[w.id] || "▪"}</span><span className="t">{TITLE(w.id)}</span>
+            </div>
+          ))}
+        </div>
+        <Tray />
+      </div>
     </div>
   );
 }
