@@ -11,13 +11,15 @@ const ICON = {
   urpd: "🧱", urpdage: "🗺️",
   concentration: "🎯", gini: "📐", whales: "🐋", clusters: "🕸️",
   sopr: "🔁", nrpl: "💵", liveliness: "⚡", cexsupply: "🏦",
-  exitflow: "🚪", survival: "🌱",
+  exitflow: "🚪", survival: "🌱", smart: "🧠",
 };
-const TITLE = (id) => (id === "overview" ? "Overview" : id === "buyers" ? "Who's Buying" : id === "about" ? "About" : (chartById(id)?.title || id));
-const DEFSIZE = (id) => (id === "overview" ? [740, 580] : id === "buyers" ? [760, 540] : id === "about" ? [480, 380] : id === "whales" || id === "clusters" ? [720, 520] : [680, 480]);
+const shortA = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+const iconOf = (id) => (id.startsWith("wallet:") ? "👤" : (ICON[id] || "▪"));
+const TITLE = (id) => (id.startsWith("wallet:") ? "Wallet " + shortA(id.slice(7)) : id === "overview" ? "Overview" : id === "buyers" ? "Who's Buying" : id === "smart" ? "Smart Money" : id === "about" ? "About" : (chartById(id)?.title || id));
+const DEFSIZE = (id) => (id === "smart" ? [860, 620] : id.startsWith("wallet:") ? [720, 560] : id === "overview" ? [740, 580] : id === "buyers" ? [760, 540] : id === "about" ? [480, 380] : id === "whales" || id === "clusters" ? [720, 520] : [680, 480]);
 
 // desktop icons (curated)
-const DESKTOP = ["overview", "buyers", "exitflow", "survival", "realized", "mvrv", "hodl", "urpd", "whales", "about"];
+const DESKTOP = ["overview", "buyers", "smart", "exitflow", "survival", "realized", "mvrv", "hodl", "whales", "about"];
 
 const useMobile = () => {
   const [m, setM] = useState(() => matchMedia("(max-width:720px), (pointer:coarse)").matches);
@@ -70,7 +72,7 @@ function Win({ w, mobile, focused, onFocus, onClose, onMin, onMax, onDrag, onRes
   return (
     <div className={"win" + (w.min ? " min" : "") + ((mobile || w.max) ? " max" : "") + (focused ? "" : " blur")} style={style} onMouseDown={onFocus}>
       <div className="win-tb" onPointerDown={(e) => !mobile && !w.max && onDrag(e, w.id)} onDoubleClick={() => !mobile && onMax(w.id)}>
-        <span className="win-ico">{ICON[w.id] || "▪"}</span>
+        <span className="win-ico">{iconOf(w.id)}</span>
         <span className="win-title">{TITLE(w.id)}</span>
         <span className="win-btns">
           <button className="wb" title="minimize" onClick={(e) => { e.stopPropagation(); onMin(w.id); }}>_</button>
@@ -93,7 +95,7 @@ function StartMenu({ onOpen, onClose }) {
         <div className="sm-head"><span className="frog">🐸</span><div><div className="who">pepecoin</div><div className="sub">valuation terminal</div></div></div>
         <div className="sm-scroll">
           <div className="sm-grp">desk</div>
-          {["overview", "buyers", "about"].map((id) => (
+          {["overview", "buyers", "smart", "about"].map((id) => (
             <div className="sm-item" key={id} onClick={() => onOpen(id)}>
               <span className="ig">{ICON[id]}</span><div><div className="it">{TITLE(id)}</div></div>
             </div>
@@ -180,6 +182,8 @@ export default function App() {
     return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
   }, []);
 
+  useEffect(() => { const on = (e) => open(e.detail); window.addEventListener("pepe-open", on); return () => window.removeEventListener("pepe-open", on); }, [open]);
+
   const enter = () => { try { sessionStorage.setItem("pepe-booted", "1"); } catch {} setBooted(true); open("overview"); };
   // open overview on first desktop paint if nothing open (post-boot returns)
   useEffect(() => { if (booted && wins.length === 0) open("overview"); }, [booted]); // eslint-disable-line
@@ -221,7 +225,7 @@ export default function App() {
           {wins.map((w) => (
             <div key={w.id} className={"taskbtn" + (w.id === topId && !w.min ? " on" : "")}
               onClick={() => (w.id === topId && !w.min ? toggleMin(w.id) : focus(w.id))}>
-              <span>{ICON[w.id] || "▪"}</span><span className="t">{TITLE(w.id)}</span>
+              <span>{iconOf(w.id)}</span><span className="t">{TITLE(w.id)}</span>
             </div>
           ))}
         </div>

@@ -176,3 +176,5 @@ body {
 .about b { color: var(--pepe-br); } .about code { font-family: var(--mono); color: #9fd7b4; font-size: 12px; }
 .about .foot { border-top: 1px solid var(--winln); padding-top: 10px; margin-top: 12px; }
 @media (max-width: 720px), (pointer: coarse) { .buy-cols { grid-template-columns: 1fr; } .ov-kpis.buyers { grid-template-columns: 1fr 1fr; } }
+.waddr { color: var(--pepe); cursor: pointer; font-family: var(--mono); }
+.waddr:hover { text-decoration: underline; }
