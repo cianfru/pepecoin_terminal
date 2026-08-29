@@ -230,14 +230,36 @@ heavily-speculated coin.
       `bought N then → M now`; an **amber ratio flags a re-buy of a similar-size bag (0.5–2×)** — the coordinated-fleet
       fingerprint. Real reads: `0x22d5…3333` bought 197k then / 200k now (1.0×, identical); several cluster members
       re-accumulate a ~0.5–1× fraction of their original run-up bag.
-  - **⭐ FINDINGS (2026-08-29, +3.4× rally $0.069→$0.235):** 32 early→sold-top→buying-back wallets ($39M cashed near the
-    $7.43 top); 17 fresh big buyers; 21 clean related groups after ETH enrichment. The strongest: **group 14** (both ETH
-    + token from `0xf1cb…5954`, $13.18M dumped), **group 10** (3 wallets, shared funder, $25.4M), **group 1** (4 wallets,
-    bought 3,113k in the run-up → re-buying 800k now). **🔲 NEXT (owner wants MORE ETH depth, not more charts — this is
-    an INTEL site building an investment thesis):** funder-of-funder (2-hop) links; label the shared private funders that
-    are themselves CEX-withdrawal-fed; per-cluster "then vs now" size-match scoring; a dedicated "coordination map"
-    view. Then SPX-parity charts later (valuation composite, methods, CEX flows). 3D skyline later (whale city NOT
-    wanted). Owner priority = analytical VALUE over visual polish; no social/bot.
+    - **✅✅ REAL-MARKET-BUY SPLIT + CONTRACT DETECTION — BUILT 2026-08-29 (owner: "this is not a market buy, it's a
+      withdrawal from a smart contract" — bcred `0xb0974f…15a4`).** THE HONESTY-DEFINING CORRECTION. The FIFO engine counted
+      ANY token arriving in a wallet as a "buy" at market price — so a wallet receiving its own tokens back from a DeFi vault,
+      or having tokens shuffled in from a sister wallet, LOOKED like reaccumulation. Two fixes, both keyless/$0:
+      - **`scripts/detect-contracts.mjs`** runs **`eth_getCode` (standard JSON-RPC, FREE on public RPCs — drpc/mevblocker,
+        batched)** over every address that FEEDS a surfaced wallet + seeders + funders, caching contract-ness in
+        `public/contract-types.json` (immutable → only new addrs queried; checkpoints every 100 so an interruption never
+        loses progress). First run: 8,613 candidates → **923 contracts**. Node `fetch` reaches the RPC through the sandbox proxy.
+      - **`build-smart-money.mjs` now classifies rally-window inflow by SOURCE:** from the LP pool/routers (kind lp/mm) = a
+        REAL market buy; from a `defi`-kind or **detected-contract** address = a vault WITHDRAWAL (not a buy); from a CEX; else
+        wallet-to-wallet (shuffle/OTC). Per wallet: `rMktNet` = DEX buys − DEX sells in the rally (the honest number), plus
+        `rCtrWd`/`rWalIn`. Surfaced rows also carry `contract:true` if the "wallet" is itself a contract.
+      - **`0xb0974f…15a4` (bcred vault) added to `EXCLUDE_LABELS` kind `defi`** (eth_getCode-confirmed contract; 61 depositors
+        / 41 withdrawers / ~4M locked). The UI (cycle table, cluster headers, wallet drill-down) now shows **real market buy**
+        vs **from vault/wallet**, and a **⚙ contract** chip on contract addresses.
+      - **⭐⭐ THE RESULT — "are they reaccumulating? no doubt?" → NO (owner was right to push).** The 32-wallet cycle cohort's
+        apparent 3.19M "rally rebuy" is really **only 345k net DEX buying (~$81k)**; 1.14M is vault withdrawals (bcred) and
+        1.50M is wallet-to-wallet. **10 of the 32 are smart contracts** (routers/MMs/vaults — incl. the $29M `0x2f87…7c6b`),
+        not people. Strip those and **~10 real wallets are actually buying, ~$62k between them.** The headline "identical 1.0×
+        rebuy" (`0x22d5…3333`) was a bcred withdrawal; `0xce04…fdf5`'s "+212k" was an 800k vault withdrawal. **LESSON (bank it
+        for every flow metric): a balance increase is NOT a market buy — always split inflow by source (DEX vs contract vs
+        wallet) and check whether the "wallet" is a contract, before calling anything accumulation.**
+  - **⭐ FINDINGS (2026-08-29, +3.4× rally $0.069→$0.235):** 32 early→sold-top wallets ($39M cashed near the $7.43 top), but on
+    the open market they are **NOT** meaningfully reaccumulating (~$81k net, ~10 real wallets; the rest is vault withdrawals,
+    shuffles, and contracts). 17 fresh big buyers; 21 clean related groups after ETH enrichment — strongest: **group 14** (both
+    ETH + token from `0xf1cb…5954`, $13.18M dumped), **group 10** ($25.4M). **🔲 NEXT (owner wants MORE ETH depth, not charts —
+    INTEL site building an investment thesis):** funder-of-funder (2-hop) links; flag shared private funders that are themselves
+    CEX-withdrawal-fed; label WHICH contracts the detected ones are (router vs MM vs vault vs Safe) via a small signature/ABI
+    probe; a dedicated "coordination map" view. Then SPX-parity charts later (valuation composite, methods, CEX flows). 3D
+    skyline later (whale city NOT wanted). Owner priority = analytical VALUE over visual polish; no social/bot.
 
 **B. Valuation layer (the hero):** the **valuation composite** — a 0–1 oscillator over history, independent
 axes (valuation / trend / relative / sentiment), percentile-ranked, weights published on a Methods page

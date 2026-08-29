@@ -78,7 +78,11 @@ jobs:
         continue-on-error: true
         run: node scripts/enrich-eth-funding.mjs
 
-      - name: Re-fold ETH funding into clusters
+      - name: Detect contracts (eth_getCode, keyless — tops up which inflow sources are contracts/vaults)
+        continue-on-error: true
+        run: node scripts/detect-contracts.mjs
+
+      - name: Re-fold ETH funding + contract detection into clusters and the market-buy split
         run: node scripts/build-smart-money.mjs --transfers=transfers.csv --prices=prices.csv
 
       - name: Upload grown archive (release asset)
@@ -98,7 +102,7 @@ jobs:
           git add public/onchain.json public/urpd.json public/whales.json public/entities.json \
                   public/cex-sankey.json public/self-moves.json public/urpd-history.json \
                   public/buyer-flow.json public/exit-flow.json public/survival.json public/smart-money.json \
-                  public/price-series.json public/eth-funding.json prices.csv
+                  public/price-series.json public/eth-funding.json public/contract-types.json prices.csv
           if git diff --cached --quiet; then
             echo "no data changes"
           else
