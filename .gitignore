@@ -3,11 +3,13 @@ node_modules/
 .env
 .env.*
 
-# Raw on-chain extracts are large and live in a GitHub release asset, not git.
-*.csv
+# The large raw transfer archive lives in a GitHub release asset, not git.
 transfers.csv
-prices.csv
+delta.csv
+*.csv.gz
+pull.log
 dune/out/
+# prices.csv IS committed (small daily series, refreshed by the onchain-refresh workflow).
 
 # Local build/tmp
 /tmp/

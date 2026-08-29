@@ -94,10 +94,17 @@ repo's CLAUDE.md works). Read it first.
    valuation (CoinGecko "max" for the coin, or a DEX-reconstructed series). ⚠ Verify coverage/
    liquidity is clean enough for the realized-price/MVRV charts (a thinly-traded token can have
    gappy price data — this is the one thing that could weaken the flagship valuation charts).
-2. **Incremental daily refresh** — the SPX pattern: full transfer history in a GitHub release asset,
-   a daily job pulls only the delta (BigQuery `block_timestamp > MAX` with a LITERAL cutoff for
-   partition pruning — never a subquery) → re-run the local FIFO → commit. Port
-   `build-onchain-dune-refresh.mjs` / the BigQuery gate workflow.
+2. **✅ SHIPPED 2026-08-29 — incremental daily refresh (zero-cost RPC).** `.github/workflows/onchain.yml`
+   (daily 05:17 UTC + dispatch). The full transfer archive lives as a GitHub **release asset**
+   `transfers.csv.gz` (tag `onchain-archive`), NOT in git (large; would bloat daily-commit history).
+   Each run: download archive → `scripts/archive-maxblock.mjs` finds the max block → delta pull
+   `pull-transfers-rpc.py --start-block=MAX` → `merge-transfers.mjs` (boundary-block replace, seam-safe)
+   → `pull-prices-defillama.py` (idempotent price refresh) → the local FIFO engine → commit public/*.json
+   + prices.csv → re-upload the grown archive. **FIRST run self-seeds** (full ~40-min pull if the asset
+   is missing, then creates the release). All pieces unit-tested + locally validated; the transfers CSV
+   carries a `block` column (engine ignores it, merge uses it). ⚠ The gh release download/upload only runs
+   in Actions (uses `github.token`) — can't be exercised from the sandbox. **prices.csv is now committed**
+   (small); transfers.csv/delta.csv/*.csv.gz/pull.log are gitignored.
 3. **The site** — port the React charts, the terminal landing, the freshness/audit machinery, the
    valuation composite (refit on pepecoin), the 3D city. Drop everything SPX-specific (AEON NFT
    track, "SPX City" branding, Solana/Base multichain unless pepecoin has a real presence there,

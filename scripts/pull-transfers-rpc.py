@@ -2,12 +2,21 @@
 # Pull the FULL pepecoin ERC-20 Transfer history from public Ethereum RPC via eth_getLogs.
 # Zero cost to any paid quota (no BigQuery bytes, no Dune credits). Exact canonical timestamps
 # come straight from each log's blockTimestamp (drpc enriches logs with it).
-# Output: transfers.csv  (sender,receiver,time,value) — engine format, value = raw uint256 decimal.
+# Output CSV columns: sender,receiver,time,value,block — engine format (it reads sender/receiver/
+# time/value by name and ignores `block`; `block` exists so the incremental refresh can merge on a
+# clean block boundary). value = raw uint256 decimal.
+#
+# Usage:
+#   full pull:  python scripts/pull-transfers-rpc.py                       (finds the deploy block)
+#   delta pull: python scripts/pull-transfers-rpc.py --start-block=N --out=delta.csv
+#   options:    --out=PATH  --log=PATH  --start-block=N
 import json, sys, time, os, ssl, urllib.request, urllib.error
 
-# The agent proxy allowlists by User-Agent (curl OK, python-urllib blocked) and needs its CA bundle.
+# Portable across environments: in the agent sandbox the proxy allowlists by User-Agent (curl OK,
+# python-urllib blocked) and needs its CA bundle; on a bare CI runner there's no proxy and the system
+# CA is used. Fall back gracefully so the same script runs in both.
 _CA  = os.environ.get("CURL_CA_BUNDLE") or "/root/.ccr/ca-bundle.crt"
-_CTX = ssl.create_default_context(cafile=_CA)
+_CTX = ssl.create_default_context(cafile=_CA) if os.path.exists(_CA) else ssl.create_default_context()
 _PXY = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
 _OPENER = urllib.request.build_opener(
     urllib.request.ProxyHandler({"https": _PXY, "http": _PXY} if _PXY else {}),
@@ -78,13 +87,24 @@ def norm_addr(topic):  # 32-byte padded → 0x + last 40 hex
     return "0x" + topic[-40:]
 
 def main():
+    global OUT, LOG
+    args = dict(a[2:].split("=", 1) if "=" in a else (a[2:], True) for a in sys.argv[1:] if a.startswith("--"))
+    OUT = args.get("out", OUT)
+    LOG = args.get("log", LOG)
     open(LOG, "w").close()
     latest = get_latest()
     log(f"latest block {latest}")
-    start = find_creation(latest)
-    log(f"creation/first-log block ~{start}  (span {latest-start} blocks)")
+    if "start-block" in args:
+        start = int(args["start-block"])
+        log(f"delta pull from block {start} → {latest} ({latest-start} blocks)")
+    else:
+        start = find_creation(latest)
+        log(f"creation/first-log block ~{start}  (span {latest-start} blocks)")
+    if start > latest:
+        f = open(OUT, "w"); f.write("sender,receiver,time,value,block\n"); f.close()
+        log("DONE: 0 transfers (archive already at tip)"); print("DONE 0 transfers"); return
 
-    f = open(OUT, "w"); f.write("sender,receiver,time,value\n")
+    f = open(OUT, "w"); f.write("sender,receiver,time,value,block\n")
     span = 2000; frm = start; n = 0; calls = 0
     while frm <= latest:
         to = min(frm + span, latest)
@@ -106,8 +126,9 @@ def main():
             sec = int(ts, 16) if isinstance(ts, str) else int(ts)
             frm_a = norm_addr(lg["topics"][1]); to_a = norm_addr(lg["topics"][2])
             val = int(lg["data"], 16)          # exact big-int
+            bn  = int(lg["blockNumber"], 16)
             iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(sec))
-            f.write(f"{frm_a},{to_a},{iso},{val}\n"); n += 1
+            f.write(f"{frm_a},{to_a},{iso},{val},{bn}\n"); n += 1
         if len(res) < 2000: span = min(100000, max(span, 1)*2)   # grow when sparse
         frm = to + 1
         time.sleep(0.1)   # gentle pacing to avoid proxy rate-limit

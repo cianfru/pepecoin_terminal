@@ -43,11 +43,19 @@ forward/back-fills gaps.
 **Data-layer foundation — in progress.** The FIFO engine is ported and proven end-to-end on the
 decimals-18 path (34/34 unit tests pass; a synthetic run reconciles exactly). What's next:
 
-- [ ] Owner runs the BigQuery extract → seed the transfer archive
-- [ ] Build out `EXCLUDE_LABELS` (the CEX / LP / bridge address map) — see `CLAUDE.md`
-- [ ] A pepecoin daily price series for cost-basis USD valuation
-- [ ] The incremental daily refresh pipeline (GitHub release archive + delta)
+- [x] **Full transfer history pulled** — 675k transfers via public-RPC `eth_getLogs`, **zero cost** (not BigQuery — see below)
+- [x] **Daily price series** — DeFiLlama, 2023-05-10 → today → `prices.csv`
+- [x] **First real `onchain.json`** — validated (holders 16.5k, MVRV 0.15×, top-100 57.8%)
+- [x] **Incremental daily refresh** — `.github/workflows/onchain.yml` (release-asset archive + RPC delta)
+- [~] `EXCLUDE_LABELS` — burn, MEXC, Gate.io, routers, Uniswap V2 LP done; a few small wallets left to verify
 - [ ] The site: charts, the terminal landing, the 3D city
+- [ ] Vercel deploy
+
+### Why not BigQuery?
+`crypto_ethereum.token_transfers` doesn't prune by token, so a pepecoin filter still scans ~500 GB
+(same as any token). The minimal-cost path is **public-RPC `eth_getLogs`** scoped to the contract —
+zero cost to any quota. `scripts/pull-transfers-rpc.py` does the full/delta pulls; drpc + mevblocker
+return exact `blockTimestamp` per log, so timestamps are canonical, not approximated.
 
 See **`CLAUDE.md`** for the full engineering notes, decisions, and honesty rails carried over
 from the SPX project.

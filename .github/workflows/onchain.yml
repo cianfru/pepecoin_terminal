@@ -1,0 +1,92 @@
+name: onchain-refresh
+
+# Daily on-chain refresh for pepecoin — ZERO cost to any paid quota.
+# The full transfer archive lives as a GitHub RELEASE ASSET (transfers.csv.gz, tag `onchain-archive`),
+# not in git (it is large and would bloat history on daily commits). Each run pulls only the NEW blocks
+# via public-RPC eth_getLogs, merges on a clean block boundary, re-runs the local FIFO engine, commits
+# the refreshed public/*.json + prices.csv, and re-uploads the grown archive.
+#
+# FIRST RUN self-seeds: if the release asset doesn't exist yet, it does a full history pull (~40 min,
+# one-time) and creates the release. Subsequent runs pull only the daily delta (seconds).
+
+on:
+  schedule:
+    - cron: "17 5 * * *"   # 05:17 UTC daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: onchain-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download transfer archive (release asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download onchain-archive -p transfers.csv.gz 2>/dev/null; then
+            gunzip -f transfers.csv.gz
+            echo "archive present: $(wc -l < transfers.csv) rows"
+          else
+            echo "no archive yet — this run will SEED with a full pull"
+          fi
+
+      - name: Pull transfers (delta, or full seed)
+        run: |
+          if [ -f transfers.csv ]; then
+            MAX=$(node scripts/archive-maxblock.mjs transfers.csv)
+            echo "delta from block $MAX"
+            python3 scripts/pull-transfers-rpc.py --start-block=$MAX --out=delta.csv --log=pull.log
+            node scripts/merge-transfers.mjs --archive=transfers.csv --delta=delta.csv --out=transfers.csv
+          else
+            python3 scripts/pull-transfers-rpc.py --out=transfers.csv --log=pull.log
+          fi
+          echo "archive now: $(wc -l < transfers.csv) rows"
+
+      - name: Refresh prices (DeFiLlama)
+        run: python3 scripts/pull-prices-defillama.py --out=prices.csv
+
+      - name: Rebuild on-chain suite (local FIFO, decimals=18)
+        run: |
+          node scripts/build-onchain-local.mjs \
+            --transfers=transfers.csv --prices=prices.csv --decimals=18 \
+            --out=public/onchain.json --urpd=public/urpd.json
+
+      - name: Upload grown archive (release asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gzip -f -c transfers.csv > transfers.csv.gz
+          gh release view onchain-archive >/dev/null 2>&1 || \
+            gh release create onchain-archive --title "On-chain transfer archive" \
+              --notes "pepecoin FIFO base (transfers.csv.gz). Managed by onchain-refresh; do not edit by hand."
+          gh release upload onchain-archive transfers.csv.gz --clobber
+
+      - name: Commit refreshed data
+        run: |
+          git config user.name "pepecoin-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/onchain.json public/urpd.json public/whales.json public/entities.json \
+                  public/cex-sankey.json public/self-moves.json public/urpd-history.json prices.csv
+          if git diff --cached --quiet; then
+            echo "no data changes"
+          else
+            git commit -m "Daily on-chain refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi
