@@ -1,15 +1,25 @@
 // Smart-money / smart-wallet analysis from the raw transfer archive.
 // Per wallet, replays FIFO lots to compute REALIZED P&L (matched buy→sell round-trips), realized ROI,
-// current position + unrealized, and recent net flow — then surfaces the cohorts the owner asked for:
-//   • cohort     — "smart wallets": realized ≥5× (or big $ profit) on prior trades, meaningful capital.
-//   • reentrants — wallets that SOLD OUT (to ~0) and are BUYING AGAIN now, with their prior realized P&L
-//                  (the "did insiders sell the top and re-accumulate?" question — shown, not asserted).
-//   • buysRecent — who bought in the last 7 days, tagged new / returning / smart / whale.
-// A second pass records each shown wallet's buy/sell events for a drill-down timeline.
-// All reconstructed locally, $0. Cost basis = market price on the acquisition day (engine convention).
+// current position + unrealized, recent net flow, AND era-aware behaviour (bought early? sold into the
+// top? buying the current rally?). Then surfaces the cohorts that answer the owner's question:
+//
+//   • cycle      — THE ONE: bought EARLY (pre-top), sold into/near the TOP for real money, and is
+//                  BUYING AGAIN in the current rally. The "insider round-trip" pattern, shown not asserted.
+//   • fresh      — brand-NEW wallets (first-ever pepecoin in the rally window) that bought a LARGE amount
+//                  and are still holding — the "seeded then accumulating this one coin" candidates.
+//   • cohort     — proven realized winners (≥5× or big $), size-gated so 1×/dust wallets drop out.
+//   • reentrants — sold out AND buying again now, size-gated by prior realized.
+//
+// clusters — among the surfaced wallets, groups that are RELATED by token flow: they share a common
+//   pepecoin SEEDER (one address sent the first coins to several of them) or moved tokens between
+//   each other. NOTE: this is TOKEN-flow linkage from the pepecoin archive only — it cannot see ETH
+//   (e.g. a Coinbase→fresh-wallet seed), which needs an ETH-layer lookup. Stated, not overclaimed.
+//
+// A second pass records each surfaced wallet's buy/sell events for the drill-down timeline (drawn over
+// the real daily price line from price-series.json). All reconstructed locally, $0.
 //
 // Usage: node scripts/build-smart-money.mjs --transfers=transfers.csv --prices=prices.csv
-import { EXCLUDE } from "./build-onchain-local.mjs";
+import { EXCLUDE, EXCLUDE_LABELS } from "./build-onchain-local.mjs";
 import { createReadStream } from "node:fs";
 import { writeFile, readFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
@@ -23,7 +33,7 @@ async function priceFn(path) {
   const rows = txt.split(/\r?\n/).slice(1).filter((l) => l.trim()).map((l) => l.split(","))
     .map((c) => [dayFloor(Date.parse(c[0])), Number(c[1])]).filter(([d, p]) => Number.isFinite(d) && Number.isFinite(p)).sort((a, b) => a[0] - b[0]);
   const at = (ts) => { let lo = 0, hi = rows.length - 1, best = rows[0][1]; while (lo <= hi) { const m = (lo + hi) >> 1; if (rows[m][0] <= ts) { best = rows[m][1]; lo = m + 1; } else hi = m - 1; } return best; };
-  return { at, spot: rows[rows.length - 1][1] };
+  return { at, spot: rows[rows.length - 1][1], rows };
 }
 
 async function loadSorted(path) {
@@ -43,37 +53,56 @@ async function loadSorted(path) {
 
 async function main() {
   const args = Object.fromEntries(process.argv.slice(2).map((a) => { const [k, v] = a.replace(/^--/, "").split("="); return [k, v ?? true]; }));
-  const MIN_INVEST = Number(args.min_invest ?? 2000);  // USD capital deployed to qualify as "smart"
-  const MIN_ROI = Number(args.min_roi ?? 5);           // realized multiple
-  const MIN_PROFIT = Number(args.min_profit ?? 25000); // or big $ realized
-  const { at: priceAt, spot } = await priceFn(args.prices || "prices.csv");
+  const MIN_INVEST = Number(args.min_invest ?? 2000);   // USD capital deployed to qualify as "smart"
+  const MIN_ROI = Number(args.min_roi ?? 5);            // realized multiple
+  const MIN_PROFIT = Number(args.min_profit ?? 25000);  // or big $ realized
+  const HIGH = Number(args.high ?? 1.0);                // "sold high" = proceeds sold at price ≥ this
+  const EARLY = Date.parse(args.early ?? "2024-03-01"); // "bought early" = first receive before this (pre-top)
+  const RALLY = Date.parse(args.rally ?? "2026-08-14"); // current rally start (price ~$0.069 before the vertical move)
+  const MIN_TOP = Number(args.min_top ?? 15000);        // USD sold high to count as "distributed the top"
+  const MIN_REENTRY = Number(args.min_reentry ?? 5000); // realized floor for re-entrants (kills dust)
+  const FRESH_DAYS = Number(args.fresh_days ?? 45);
+  const MIN_FRESH = Number(args.min_fresh ?? 3000);     // USD of the fresh wallet's buys to be interesting
+
+  const { at: priceAt, spot, rows: priceRows } = await priceFn(args.prices || "prices.csv");
   const tx = await loadSorted(args.transfers || "transfers.csv");
   const nowTs = tx[tx.length - 1].ts;
-  const c7 = nowTs - 7 * DAY, c30 = nowTs - 30 * DAY;
-  const ex = (a) => EXCLUDE.has(a) || !a || a === "0x0000000000000000000000000000000000000000";
+  const c7 = nowTs - 7 * DAY, c30 = nowTs - 30 * DAY, cFresh = nowTs - FRESH_DAYS * DAY;
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  const ex = (a) => EXCLUDE.has(a) || !a || a === ZERO;
 
   // per-wallet state
   const W = new Map();
-  const get = (a) => { let w = W.get(a); if (!w) W.set(a, (w = { lots: [], bal: 0, invested: 0, proceeds: 0, costSold: 0, realized: 0, first: 0, soldOut: false, reentered: false, b7: null, b30: null })); return w; };
-  let snap7 = false, snap30 = false;
+  const get = (a) => { let w = W.get(a); if (!w) W.set(a, (w = {
+    lots: [], bal: 0, invested: 0, proceeds: 0, costSold: 0, realized: 0, first: 0, firstPrice: 0,
+    bought: 0, sold: 0, soldHigh: 0, peakBal: 0, seeder: null, firstBuyUsd: 0, firstDay: 0,
+    soldOut: false, reentered: false, b7: null, b30: null, bRally: null,
+  })); return w; };
+  let snap7 = false, snap30 = false, snapRally = false;
   for (const t of tx) {
     if (!snap30 && t.ts >= c30) { for (const [, w] of W) w.b30 = w.bal; snap30 = true; }
+    if (!snapRally && t.ts >= RALLY) { for (const [, w] of W) w.bRally = w.bal; snapRally = true; }
     if (!snap7 && t.ts >= c7) { for (const [, w] of W) w.b7 = w.bal; snap7 = true; }
     const price = priceAt(dayFloor(t.ts));
     if (!ex(t.to)) {
       const w = get(t.to);
       if (w.bal < EPS && w.first && w.soldOut) w.reentered = true;
-      w.lots.push({ q: t.amt, p: price }); w.invested += t.amt * price; w.bal += t.amt; if (!w.first) w.first = t.ts;
+      w.lots.push({ q: t.amt, p: price }); w.invested += t.amt * price; w.bal += t.amt; w.bought += t.amt;
+      if (!w.first) { w.first = t.ts; w.firstPrice = price; w.firstDay = dayFloor(t.ts); w.seeder = ex(t.from) ? null : t.from; }
+      if (t.ts <= w.firstDay + DAY) w.firstBuyUsd += t.amt * price; // buys within the first day
+      if (w.bal > w.peakBal) w.peakBal = w.bal;
     }
     if (!ex(t.from)) {
       const w = get(t.from);
       let rem = t.amt, cost = 0;
       while (rem > EPS && w.lots.length) { const lot = w.lots[0]; const take = Math.min(rem, lot.q); cost += take * lot.p; lot.q -= take; rem -= take; if (lot.q <= EPS) w.lots.shift(); }
-      w.proceeds += t.amt * price; w.costSold += cost; w.realized += t.amt * price - cost; w.bal -= t.amt;
+      w.proceeds += t.amt * price; w.costSold += cost; w.realized += t.amt * price - cost; w.bal -= t.amt; w.sold += t.amt;
+      if (price >= HIGH) w.soldHigh += t.amt * price;
       if (w.bal < EPS) { w.bal = 0; w.soldOut = true; w.lots = []; }
     }
   }
   if (!snap30) for (const [, w] of W) w.b30 = w.bal;
+  if (!snapRally) for (const [, w] of W) w.bRally = w.bal;
   if (!snap7) for (const [, w] of W) w.b7 = w.bal;
 
   const rows = [];
@@ -83,48 +112,131 @@ async function main() {
     const avgCost = heldQ > EPS ? w.lots.reduce((s, l) => s + l.q * l.p, 0) / heldQ : 0;
     const unreal = heldQ * (spot - avgCost);
     const roi = w.costSold > EPS ? w.proceeds / w.costSold : 0;
-    const d7 = w.bal - (w.b7 ?? w.bal), d30 = w.bal - (w.b30 ?? w.bal);
+    const d7 = w.bal - (w.b7 ?? w.bal), d30 = w.bal - (w.b30 ?? w.bal), dRally = w.bal - (w.bRally ?? w.bal);
+    const soldFrac = w.bought > EPS ? w.sold / w.bought : 0;
     rows.push({ a, realized: w.realized, roi, invested: w.invested, proceeds: w.proceeds, bal: w.bal, avgCost, unreal,
-      d7, d30, first: iso(w.first), soldOut: w.soldOut, reentered: w.reentered });
+      d7, d30, dRally, first: iso(w.first), firstTs: w.first, firstPrice: w.firstPrice, firstBuyUsd: w.firstBuyUsd,
+      bought: w.bought, sold: w.sold, soldFrac, soldHigh: w.soldHigh, peakBal: w.peakBal,
+      seeder: w.seeder, soldOut: w.soldOut, reentered: w.reentered });
   }
+  const byAddr = new Map(rows.map((r) => [r.a, r]));
 
-  const rnd = (x, d = 0) => +x.toFixed(d);
+  const rnd = (x, d = 0) => +(x || 0).toFixed(d);
   const trim = (r) => ({ a: r.a, realized: rnd(r.realized), roi: rnd(r.roi, 2), invested: rnd(r.invested), bal: rnd(r.bal),
-    avgCost: rnd(r.avgCost, 6), unreal: rnd(r.unreal), d7: rnd(r.d7), d30: rnd(r.d30), first: r.first, soldOut: r.soldOut, reentered: r.reentered });
+    avgCost: rnd(r.avgCost, 6), unreal: rnd(r.unreal), d7: rnd(r.d7), d30: rnd(r.d30), dRally: rnd(r.dRally),
+    first: r.first, firstPrice: rnd(r.firstPrice, 6), firstBuyUsd: rnd(r.firstBuyUsd), soldHigh: rnd(r.soldHigh),
+    peakBal: rnd(r.peakBal), seeder: r.seeder, soldOut: r.soldOut, reentered: r.reentered });
 
+  // ★ CYCLE: bought EARLY, sold into the TOP for real money, BUYING the rally again
+  const cycle = rows.filter((r) => r.firstTs && r.firstTs < EARLY && r.soldHigh >= MIN_TOP && r.dRally > 0)
+    .sort((a, b) => b.soldHigh - a.soldHigh).map(trim);
+  // FRESH: first-ever pepecoin in the rally window, bought big, still holding (sold <25% of what they bought)
+  const fresh = rows.filter((r) => r.firstTs >= cFresh && r.firstBuyUsd >= MIN_FRESH && r.soldFrac < 0.25 && r.bal * spot >= MIN_FRESH)
+    .sort((a, b) => b.firstBuyUsd - a.firstBuyUsd).map(trim);
   // COHORT: proven realized winners (5x or big profit) with real capital
   const cohort = rows.filter((r) => r.invested >= MIN_INVEST && (r.roi >= MIN_ROI || r.realized >= MIN_PROFIT))
     .sort((a, b) => b.realized - a.realized).map(trim);
-  // RE-ENTRANTS: sold out AND buying again in the last 30d — the owner's key list
-  const reentrants = rows.filter((r) => r.soldOut && r.d30 > 0 && r.realized > 0)
+  // RE-ENTRANTS: sold out AND buying again in the last 30d, prior realized above the dust floor
+  const reentrants = rows.filter((r) => r.soldOut && r.d30 > 0 && r.realized >= MIN_REENTRY)
     .sort((a, b) => b.realized - a.realized).map(trim);
   // WHO'S BUYING (7d): net buyers, tagged
   const smartSet = new Set(cohort.filter((r) => r.roi >= MIN_ROI).map((r) => r.a));
   const buysRecent = rows.filter((r) => r.d7 > 0).sort((a, b) => b.d7 - a.d7).slice(0, 40).map((r) => ({
-    ...trim(r), tag: smartSet.has(r.a) ? "smart" : r.reentered ? "returning" : (r.first && Date.parse(r.first) >= c30) ? "new" : "adding",
+    ...trim(r), tag: smartSet.has(r.a) ? "smart" : r.reentered ? "returning" : (r.firstTs >= c30) ? "new" : "adding",
   }));
 
-  // second pass: buy/sell timeline for shown wallets (cohort∪reentrants∪buysRecent, capped)
-  const keep = new Set([...cohort.slice(0, 60), ...reentrants.slice(0, 60), ...buysRecent].map((r) => r.a));
+  // ---- surfaced set + token-flow clustering ----
+  // GUARDS (SPX "supernode" lesson): a seeder/hub that touches MANY surfaced wallets is an untagged
+  // distributor/router, NOT a personal funder — clustering on it fuses the whole graph into one blob.
+  // So we only link on a SHARED SEEDER that seeded a SMALL handful (2..MAX_SEED), and we drop DIRECT
+  // links that route through a high-degree hub. Over-merging overstates coordination — every rule errs shy.
+  const MAX_SEED = Number(args.max_seed ?? 6); // a seeder feeding more than this many surfaced wallets = distributor
+  const HUB = Number(args.hub ?? 8);           // a wallet transacting with more than this many members = hub
+  const surfaced = [...cycle, ...fresh, ...cohort.slice(0, 80), ...reentrants.slice(0, 80), ...buysRecent];
+  const members = new Set(surfaced.map((r) => r.a));
+
+  // union-find
+  const parent = new Map();
+  const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  const uni = (a, b) => { parent.set(find(a), find(b)); };
+  for (const a of members) parent.set(a, a);
+
+  // (a) shared SEEDER: one non-excluded address sent the first coins to a SMALL group (2..MAX_SEED) of surfaced wallets
+  const bySeeder = new Map();
+  for (const a of members) { const s = byAddr.get(a)?.seeder; if (s && !ex(s)) { let l = bySeeder.get(s); if (!l) bySeeder.set(s, l = []); l.push(a); } }
+  const distributors = new Set(); // seeders too broad to be personal — recorded, not fused
+  const seedGroups = [];
+  for (const [s, list] of bySeeder) {
+    if (list.length < 2) continue;
+    if (list.length > MAX_SEED) { distributors.add(s); continue; }
+    seedGroups.push({ seeder: s, members: list });
+    for (let i = 1; i < list.length; i++) uni(list[0], list[i]);
+  }
+
+  // (b) DIRECT links: token transfers between two surfaced wallets — but count degree first and skip hubs
+  const rawLinks = [];
+  const deg = new Map();
+  for (const t of tx) if (members.has(t.from) && members.has(t.to) && t.from !== t.to) {
+    rawLinks.push([t.from, t.to, rnd(t.amt)]);
+    deg.set(t.from, (deg.get(t.from) || 0) + 1); deg.set(t.to, (deg.get(t.to) || 0) + 1);
+  }
+  const links = [];
+  for (const [f, t, amt] of rawLinks) {
+    if ((deg.get(f) || 0) > HUB || (deg.get(t) || 0) > HUB) continue; // route through a hub — don't fuse
+    uni(f, t); links.push([f, t, amt]);
+  }
+
+  // assemble clusters (≥2 members)
+  const groups = new Map();
+  for (const a of members) { const r = find(a); (groups.get(r) || groups.set(r, []).get(r)).push(a); }
+  let clusters = [...groups.values()].filter((g) => g.length >= 2).map((g, i) => {
+    const mem = g.map((a) => byAddr.get(a)).filter(Boolean);
+    const seeders = seedGroups.filter((sg) => sg.members.some((m) => g.includes(m)));
+    return {
+      id: i + 1, size: g.length, flagged: g.length > 25, // still-large groups are shown but not trusted
+      realized: rnd(mem.reduce((s, r) => s + r.realized, 0)),
+      soldHigh: rnd(mem.reduce((s, r) => s + r.soldHigh, 0)),
+      dRally: rnd(mem.reduce((s, r) => s + r.dRally, 0)),
+      bal: rnd(mem.reduce((s, r) => s + r.bal, 0)),
+      seeders: [...new Set(seeders.map((sg) => sg.seeder))],
+      members: g.map((a) => { const r = byAddr.get(a); return { a, realized: rnd(r.realized), soldHigh: rnd(r.soldHigh), dRally: rnd(r.dRally), bal: rnd(r.bal), seeder: r.seeder, first: r.first }; }),
+      links: links.filter(([f, t]) => g.includes(f) && g.includes(t)),
+    };
+  }).sort((a, b) => (b.soldHigh + b.realized) - (a.soldHigh + a.realized));
+
+  // second pass: buy/sell timeline for surfaced wallets (capped)
+  const keep = members;
   const detail = {};
   for (const t of tx) {
     const price = priceAt(dayFloor(t.ts));
     if (keep.has(t.to)) { (detail[t.to] ??= { buys: [], sells: [] }).buys.push([iso(t.ts), rnd(price, 6), rnd(t.amt)]); }
     if (keep.has(t.from)) { (detail[t.from] ??= { buys: [], sells: [] }).sells.push([iso(t.ts), rnd(price, 6), rnd(t.amt)]); }
   }
-  for (const k in detail) { detail[k].buys = detail[k].buys.slice(-120); detail[k].sells = detail[k].sells.slice(-120); }
+  for (const k in detail) { detail[k].buys = detail[k].buys.slice(-200); detail[k].sells = detail[k].sells.slice(-200); }
 
-  const out = { updated: iso(nowTs), spot, minInvest: MIN_INVEST, minRoi: MIN_ROI,
-    stats: { cohort: cohort.length, reentrants: reentrants.length,
+  // compact daily price series for the drill-down chart (sampled, ~1 point/day)
+  await writeFile("public/price-series.json", JSON.stringify({ updated: iso(nowTs), spot, series: priceRows.map(([d, p]) => [iso(d), rnd(p, 6)]) }));
+
+  const seederName = (a) => EXCLUDE_LABELS?.[a]?.label || null;
+  const out = { updated: iso(nowTs), spot, minInvest: MIN_INVEST, minRoi: MIN_ROI, high: HIGH, minReentry: MIN_REENTRY,
+    stats: { cohort: cohort.length, reentrants: reentrants.length, cycle: cycle.length, fresh: fresh.length,
+      clusters: clusters.length,
+      cycleSoldHigh: rnd(cycle.reduce((s, r) => s + r.soldHigh, 0)),
+      cycleReinvest: rnd(cycle.reduce((s, r) => s + r.dRally, 0)),
+      freshUsd: rnd(fresh.reduce((s, r) => s + r.firstBuyUsd, 0)),
       reentrantRealized: rnd(reentrants.reduce((s, r) => s + r.realized, 0)),
       reentrantReinvest30d: rnd(reentrants.reduce((s, r) => s + r.d30, 0)) },
-    cohort: cohort.slice(0, 100), reentrants: reentrants.slice(0, 100), buysRecent, detail };
+    cycle: cycle.slice(0, 60), fresh: fresh.slice(0, 60), cohort: cohort.slice(0, 100), reentrants: reentrants.slice(0, 100),
+    buysRecent, clusters: clusters.slice(0, 40), detail };
   await writeFile("public/smart-money.json", JSON.stringify(out));
 
-  console.log(`spot $${spot.toFixed(4)}`);
-  console.log(`cohort (≥${MIN_ROI}× or ≥$${MIN_PROFIT} realized, ≥$${MIN_INVEST} in): ${cohort.length}`);
-  console.log(`RE-ENTRANTS (sold out, buying again 30d): ${reentrants.length} · prior realized $${(out.stats.reentrantRealized/1e6).toFixed(2)}M · re-bought ${(out.stats.reentrantReinvest30d/1e6).toFixed(2)}M tokens`);
-  console.log(`top re-entrants by prior realized P&L:`);
-  for (const r of reentrants.slice(0, 10)) console.log(`  ${r.a}  realized $${(r.realized/1e3).toFixed(0)}k  roi ${r.roi}×  now buying +${(r.d30/1e3).toFixed(0)}k  bag ${(r.bal/1e3).toFixed(0)}k`);
+  console.log(`spot $${spot.toFixed(4)}  ·  high≥$${HIGH}  early<${iso(EARLY)}  rally≥${iso(RALLY)}`);
+  console.log(`★ CYCLE (early → sold top ≥$${MIN_TOP/1e3}k → buying rally): ${cycle.length} · sold-high $${(out.stats.cycleSoldHigh/1e6).toFixed(2)}M · re-bought ${(out.stats.cycleReinvest/1e6).toFixed(2)}M tokens`);
+  for (const r of cycle.slice(0, 12)) console.log(`  ${r.a}  sold-high $${(r.soldHigh/1e3).toFixed(0)}k  realized $${(r.realized/1e3).toFixed(0)}k  first ${r.first} @$${r.firstPrice}  now +${(r.dRally/1e3).toFixed(0)}k  bag ${(r.bal/1e3).toFixed(0)}k`);
+  console.log(`FRESH (new in ${FRESH_DAYS}d, bought ≥$${MIN_FRESH/1e3}k, holding): ${fresh.length} · total bought $${(out.stats.freshUsd/1e3).toFixed(0)}k`);
+  for (const r of fresh.slice(0, 12)) console.log(`  ${r.a}  first ${r.first} @$${r.firstPrice}  bought $${(r.firstBuyUsd/1e3).toFixed(0)}k  bag ${(r.bal/1e3).toFixed(0)}k  seeder ${r.seeder || "—"}`);
+  console.log(`CLUSTERS (surfaced wallets related by token flow): ${clusters.length}`);
+  for (const c of clusters.slice(0, 8)) console.log(`  #${c.id} ${c.size} wallets · sold-high $${(c.soldHigh/1e3).toFixed(0)}k · rally +${(c.dRally/1e3).toFixed(0)}k · seeders ${c.seeders.length}`);
+  console.log(`cohort ${cohort.length} · reentrants ${reentrants.length}`);
 }
 main();
