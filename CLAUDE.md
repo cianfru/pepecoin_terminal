@@ -230,6 +230,19 @@ heavily-speculated coin.
       `bought N then → M now`; an **amber ratio flags a re-buy of a similar-size bag (0.5–2×)** — the coordinated-fleet
       fingerprint. Real reads: `0x22d5…3333` bought 197k then / 200k now (1.0×, identical); several cluster members
       re-accumulate a ~0.5–1× fraction of their original run-up bag.
+    - **✅✅ "WHO MOVED THE RALLY" PANEL — BUILT 2026-08-29 (owner: "the real question is who pushed the price 4× if not
+      insiders").** New window **`rally`** (`RallyPanel`, 🚀, on the desktop + Start menu). `build-smart-money.mjs` emits a
+      `rally` section: the **net tokens the LP pool paid out** during the rally (`poolOut − poolIn` = the price-moving flow),
+      every wallet that net-BOUGHT on the DEX ranked + **categorised** (contract / returning / new / existing / insider), the
+      by-category split, and concentration (top-1 / top-10 %). **⭐ THE ANSWER: it was NOT insiders (4%).** ~$658k of net
+      tokens leaving a thin pool 4×'d the price; 306 dispersed buyers (top buyer 11%); split ≈ contract 42% (routers/
+      aggregators/arb bots — some retail-via-MetaMask, some CEX↔DEX arb), returning 31%, new 17%, existing 6%, insider 4%.
+      Reads as a **low-liquidity markup, not informed accumulation.** **⭐ EVERY WALLET IS CHECKABLE (owner asked):** each
+      top-buyer row is a clickable `Addr` → the `WalletDetail` drill-down (buy/sell over the real price line) PLUS an explicit
+      **"etherscan ↗"** link; the top-60 rally buyers are added to the detail `keep` set so their timelines render, and
+      `WalletDetail` gained a fallback tile set (net market buy · ~$ · bag · type · first seen · is-a-contract) for a
+      rally-only buyer not in any cohort. **LESSON: on a thin float, "who pushed it" is usually the float itself — measure
+      net pool outflow first; a 4× can need only a few hundred $k.**
     - **✅✅ REAL-MARKET-BUY SPLIT + CONTRACT DETECTION — BUILT 2026-08-29 (owner: "this is not a market buy, it's a
       withdrawal from a smart contract" — bcred `0xb0974f…15a4`).** THE HONESTY-DEFINING CORRECTION. The FIFO engine counted
       ANY token arriving in a wallet as a "buy" at market price — so a wallet receiving its own tokens back from a DeFi vault,
