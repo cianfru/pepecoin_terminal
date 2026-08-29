@@ -89,6 +89,9 @@ jobs:
       - name: Re-fold ETH funding + contract detection/labels into clusters, market-buy split, rally
         run: node scripts/build-smart-money.mjs --transfers=transfers.csv --prices=prices.csv
 
+      - name: Build insider exit watch (forward tripwire on the operator cohort)
+        run: node scripts/build-insider-watch.mjs --transfers=transfers.csv --prices=prices.csv
+
       - name: Upload grown archive (release asset)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -107,7 +110,7 @@ jobs:
                   public/cex-sankey.json public/self-moves.json public/urpd-history.json \
                   public/buyer-flow.json public/exit-flow.json public/survival.json public/smart-money.json \
                   public/price-series.json public/eth-funding.json public/contract-types.json \
-                  public/contract-labels.json prices.csv
+                  public/contract-labels.json public/insider-watch.json prices.csv
           if git diff --cached --quiet; then
             echo "no data changes"
           else
