@@ -170,14 +170,18 @@ Everything below already exists, proven, in the SPX repo — porting is mostly r
 **Judge each on "is it a real, interesting, honest finding for pepecoin," not "is it too techy"** (SPX
 retired the "techy doesn't land" rule). Keep the plain-language `<Explain>`/subtitle gloss on techy charts.
 
-**A. ✅ DONE — the core 2D suite (18 charts) + gallery/routing shipped & live.** Still to add, and the ONE
-thing that needs new BUILDERS (not just a component): **"how holders left" (exit-flow)** and **cohort
-survival ("who's still here")** + cost-basis-by-cohort. The raw `transfers.csv` is available locally to run
-them. Port `build-exit-flow.mjs` + `build-cohort-survival.mjs` (+ `build-city-timeline.mjs` which
-cohort-survival depends on) + `build-smart-money.mjs` from the SPX repo (`/home/user/The_Terminal/scripts/`),
-rescale the SPX 5,000-token residency bar to pepecoin's supply, run against `transfers.csv` + `prices.csv`,
-emit `public/exit-flow.json` / `cohort-survival.json` / `smart-money.json`, wire them into `onchain.yml`, add
-the chart components + catalog entries. Also a Methods page + a CEX-flow chart once the exclude list grows.
+**A. ✅ DONE — core 2D suite (18 charts) + the FLOW/LIFECYCLE suite (owner's priority — "who's buying / who
+left / who's still here").** `scripts/build-flows.mjs` (a purpose-built builder, NOT the SPX ports — cleaner)
+reads `transfers.csv` + `prices.csv` in one pass → three daily feeds: **`buyer-flow.json`** (daily net
+accumulation split into brand-new / reactivated / adding vs sold + counts), **`exit-flow.json`** (daily supply
+that left, profit vs loss via an avg-cost proxy), **`survival.json`** (arrival-quarter cohort survival). Wired
+into `onchain.yml` (daily). Windows: **Who's Buying** (`buyers` panel — 120-day stacked cohort chart + KPIs +
+top 7d buyers), **How holders left** (`exitflow`), **Who's Still Here** (`survival`). Bar/dust knobs
+`--bar=1000 --dust=50`. **⭐ FINDINGS (2026-08-29 rally +3.4×):** net +3M absorbed, 41% fresh demand, coins
+drained from the LP — but **survival is 6%** (3,118 of 55,498 ever-holders ≥1k remain) = extreme churn, a
+heavily-speculated coin. **🔲 NEXT:** more SPX-parity charts (valuation composite, methods page, CEX venue
+flows, cost-basis-by-cohort, a richer per-wallet buyer drill-down), then 3D holder skyline (whale city NOT
+wanted). Owner priority = analytical VALUE over visual polish; no social/bot.
 
 **B. Valuation layer (the hero):** the **valuation composite** — a 0–1 oscillator over history, independent
 axes (valuation / trend / relative / sentiment), percentile-ranked, weights published on a Methods page

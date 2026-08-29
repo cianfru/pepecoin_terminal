@@ -11,12 +11,13 @@ const ICON = {
   urpd: "🧱", urpdage: "🗺️",
   concentration: "🎯", gini: "📐", whales: "🐋", clusters: "🕸️",
   sopr: "🔁", nrpl: "💵", liveliness: "⚡", cexsupply: "🏦",
+  exitflow: "🚪", survival: "🌱",
 };
 const TITLE = (id) => (id === "overview" ? "Overview" : id === "buyers" ? "Who's Buying" : id === "about" ? "About" : (chartById(id)?.title || id));
 const DEFSIZE = (id) => (id === "overview" ? [740, 580] : id === "buyers" ? [760, 540] : id === "about" ? [480, 380] : id === "whales" || id === "clusters" ? [720, 520] : [680, 480]);
 
 // desktop icons (curated)
-const DESKTOP = ["overview", "buyers", "realized", "mvrv", "hodl", "urpd", "whales", "concentration", "about"];
+const DESKTOP = ["overview", "buyers", "exitflow", "survival", "realized", "mvrv", "hodl", "urpd", "whales", "about"];
 
 const useMobile = () => {
   const [m, setM] = useState(() => matchMedia("(max-width:720px), (pointer:coarse)").matches);

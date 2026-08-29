@@ -4,6 +4,7 @@ export const GROUPS = [
   { id: "valuation",     name: "Valuation",              blurb: "Cheap or expensive versus what holders actually paid" },
   { id: "conviction",    name: "Holders & conviction",   blurb: "Who holds, for how long, and how deep" },
   { id: "costbasis",     name: "Cost basis",             blurb: "Where the supply was acquired" },
+  { id: "flows",         name: "Flows & lifecycle",      blurb: "Who's buying, who left, who's still here" },
   { id: "concentration", name: "Concentration & ownership", blurb: "How spread out the supply is" },
   { id: "behaviour",     name: "Behaviour & flows",      blurb: "Profit-taking, coin movement, exchange supply" },
 ];
@@ -21,6 +22,9 @@ export const CHARTS = [
 
   { id: "urpd",         group: "costbasis",     title: "Cost-basis distribution", blurb: "Where supply was bought (URPD)", feat: true },
   { id: "urpdage",      group: "costbasis",     title: "Cost basis by age",      blurb: "Acquisition price × holding age" },
+
+  { id: "exitflow",     group: "flows",         title: "How holders left",       blurb: "Exits in profit vs at a loss", feat: true },
+  { id: "survival",     group: "flows",         title: "Who's still here",       blurb: "Arrival-cohort survival" },
 
   { id: "concentration", group: "concentration", title: "Concentration",         blurb: "Top-10 / top-100 share" },
   { id: "gini",         group: "concentration", title: "Gini",                   blurb: "Inequality of holdings" },
