@@ -58,6 +58,7 @@ async function main() {
   const MIN_PROFIT = Number(args.min_profit ?? 25000);  // or big $ realized
   const HIGH = Number(args.high ?? 1.0);                // "sold high" = proceeds sold at price ≥ this
   const EARLY = Date.parse(args.early ?? "2024-03-01"); // "bought early" = first receive before this (pre-top)
+  const ATH = Date.parse(args.ath ?? "2024-04-11");     // the top — "first run-up" accumulation is everything before it
   const RALLY = Date.parse(args.rally ?? "2026-08-14"); // current rally start (price ~$0.069 before the vertical move)
   const MIN_TOP = Number(args.min_top ?? 15000);        // USD sold high to count as "distributed the top"
   const MIN_REENTRY = Number(args.min_reentry ?? 5000); // realized floor for re-entrants (kills dust)
@@ -76,6 +77,7 @@ async function main() {
   const get = (a) => { let w = W.get(a); if (!w) W.set(a, (w = {
     lots: [], bal: 0, invested: 0, proceeds: 0, costSold: 0, realized: 0, first: 0, firstPrice: 0,
     bought: 0, sold: 0, soldHigh: 0, peakBal: 0, seeder: null, firstBuyUsd: 0, firstDay: 0,
+    earlyBought: 0, rallyBought: 0,
     soldOut: false, reentered: false, b7: null, b30: null, bRally: null,
   })); return w; };
   let snap7 = false, snap30 = false, snapRally = false;
@@ -90,6 +92,8 @@ async function main() {
       w.lots.push({ q: t.amt, p: price }); w.invested += t.amt * price; w.bal += t.amt; w.bought += t.amt;
       if (!w.first) { w.first = t.ts; w.firstPrice = price; w.firstDay = dayFloor(t.ts); w.seeder = ex(t.from) ? null : t.from; }
       if (t.ts <= w.firstDay + DAY) w.firstBuyUsd += t.amt * price; // buys within the first day
+      if (t.ts < ATH) w.earlyBought += t.amt;   // tokens accumulated during the first run-up (pre-top)
+      if (t.ts >= RALLY) w.rallyBought += t.amt; // tokens bought in the current rally
       if (w.bal > w.peakBal) w.peakBal = w.bal;
     }
     if (!ex(t.from)) {
@@ -117,15 +121,26 @@ async function main() {
     rows.push({ a, realized: w.realized, roi, invested: w.invested, proceeds: w.proceeds, bal: w.bal, avgCost, unreal,
       d7, d30, dRally, first: iso(w.first), firstTs: w.first, firstPrice: w.firstPrice, firstBuyUsd: w.firstBuyUsd,
       bought: w.bought, sold: w.sold, soldFrac, soldHigh: w.soldHigh, peakBal: w.peakBal,
+      earlyBought: w.earlyBought, rallyBought: w.rallyBought,
       seeder: w.seeder, soldOut: w.soldOut, reentered: w.reentered });
   }
   const byAddr = new Map(rows.map((r) => [r.a, r]));
 
+  // optional ETH-funding enrichment (public/eth-funding.json, maintained by enrich-eth-funding.mjs; no key)
+  let funding = {};
+  try { funding = JSON.parse(await readFile("public/eth-funding.json", "utf8")).wallets || {}; } catch { funding = {}; }
+  const fundOf = (a) => funding[a]?.funder || null;                 // first ETH funder
+  const fundLabel = (a) => funding[a]?.label || null;               // exchange name, or null = private EOA
+  const fundEx = (a) => !!funding[a]?.exchange;                     // funded by a known exchange?
+
   const rnd = (x, d = 0) => +(x || 0).toFixed(d);
+  // "then vs now": ratio of rally buys to the original run-up accumulation (a same-size re-buy is a fingerprint)
+  const thenNow = (r) => r.earlyBought > EPS && r.rallyBought > EPS ? r.rallyBought / r.earlyBought : 0;
   const trim = (r) => ({ a: r.a, realized: rnd(r.realized), roi: rnd(r.roi, 2), invested: rnd(r.invested), bal: rnd(r.bal),
     avgCost: rnd(r.avgCost, 6), unreal: rnd(r.unreal), d7: rnd(r.d7), d30: rnd(r.d30), dRally: rnd(r.dRally),
     first: r.first, firstPrice: rnd(r.firstPrice, 6), firstBuyUsd: rnd(r.firstBuyUsd), soldHigh: rnd(r.soldHigh),
-    peakBal: rnd(r.peakBal), seeder: r.seeder, soldOut: r.soldOut, reentered: r.reentered });
+    peakBal: rnd(r.peakBal), earlyBought: rnd(r.earlyBought), rallyBought: rnd(r.rallyBought), thenNow: rnd(thenNow(r), 2),
+    seeder: r.seeder, ethFunder: fundOf(r.a), ethLabel: fundLabel(r.a), soldOut: r.soldOut, reentered: r.reentered });
 
   // ★ CYCLE: bought EARLY, sold into the TOP for real money, BUYING the rally again
   const cycle = rows.filter((r) => r.firstTs && r.firstTs < EARLY && r.soldHigh >= MIN_TOP && r.dRally > 0)
@@ -186,21 +201,41 @@ async function main() {
     uni(f, t); links.push([f, t, amt]);
   }
 
+  // (c) shared ETH FUNDER: surfaced wallets whose FIRST ETH came from the SAME non-exchange address.
+  // This is the strong coordination signal the token graph can't see (a Coinbase→fresh-wallet seed).
+  // Exchange funders (Coinbase/Binance/…) are recorded per-wallet but NEVER fuse — millions share a hot wallet.
+  const MAX_FUND = Number(args.max_fund ?? 8);
+  const byFunder = new Map();
+  for (const a of members) { const f = fundOf(a); if (f && !fundEx(a) && !ex(f)) { let l = byFunder.get(f); if (!l) byFunder.set(f, l = []); l.push(a); } }
+  const funderGroups = [];
+  for (const [f, list] of byFunder) {
+    if (list.length < 2 || list.length > MAX_FUND) continue; // 2..MAX_FUND private-EOA-funded wallets → same hand
+    funderGroups.push({ funder: f, members: list });
+    for (let i = 1; i < list.length; i++) uni(list[0], list[i]);
+  }
+
   // assemble clusters (≥2 members)
   const groups = new Map();
   for (const a of members) { const r = find(a); (groups.get(r) || groups.set(r, []).get(r)).push(a); }
   let clusters = [...groups.values()].filter((g) => g.length >= 2).map((g, i) => {
+    const gs = new Set(g);
     const mem = g.map((a) => byAddr.get(a)).filter(Boolean);
-    const seeders = seedGroups.filter((sg) => sg.members.some((m) => g.includes(m)));
+    const seeders = seedGroups.filter((sg) => sg.members.some((m) => gs.has(m)));
+    const funders = funderGroups.filter((fg) => fg.members.some((m) => gs.has(m)));
     return {
       id: i + 1, size: g.length, flagged: g.length > 25, // still-large groups are shown but not trusted
       realized: rnd(mem.reduce((s, r) => s + r.realized, 0)),
       soldHigh: rnd(mem.reduce((s, r) => s + r.soldHigh, 0)),
       dRally: rnd(mem.reduce((s, r) => s + r.dRally, 0)),
       bal: rnd(mem.reduce((s, r) => s + r.bal, 0)),
+      earlyBought: rnd(mem.reduce((s, r) => s + r.earlyBought, 0)),
+      rallyBought: rnd(mem.reduce((s, r) => s + r.rallyBought, 0)),
       seeders: [...new Set(seeders.map((sg) => sg.seeder))],
-      members: g.map((a) => { const r = byAddr.get(a); return { a, realized: rnd(r.realized), soldHigh: rnd(r.soldHigh), dRally: rnd(r.dRally), bal: rnd(r.bal), seeder: r.seeder, first: r.first }; }),
-      links: links.filter(([f, t]) => g.includes(f) && g.includes(t)),
+      ethFunders: [...new Set(funders.map((fg) => fg.funder))],
+      members: g.map((a) => { const r = byAddr.get(a); return { a, realized: rnd(r.realized), soldHigh: rnd(r.soldHigh),
+        dRally: rnd(r.dRally), bal: rnd(r.bal), earlyBought: rnd(r.earlyBought), rallyBought: rnd(r.rallyBought),
+        seeder: r.seeder, ethFunder: fundOf(a), ethLabel: fundLabel(a), first: r.first }; }),
+      links: links.filter(([f, t]) => gs.has(f) && gs.has(t)),
     };
   }).sort((a, b) => (b.soldHigh + b.realized) - (a.soldHigh + a.realized));
 
@@ -217,17 +252,29 @@ async function main() {
   // compact daily price series for the drill-down chart (sampled, ~1 point/day)
   await writeFile("public/price-series.json", JSON.stringify({ updated: iso(nowTs), spot, series: priceRows.map(([d, p]) => [iso(d), rnd(p, 6)]) }));
 
-  const seederName = (a) => EXCLUDE_LABELS?.[a]?.label || null;
+  // funding summary: which exchanges seeded the fresh/cycle wallets, and how many are private-EOA-funded
+  const fundedSet = [...members].filter((a) => fundOf(a));
+  const exchangeCounts = {};
+  for (const a of fundedSet) if (fundEx(a)) { const l = fundLabel(a) || "exchange"; exchangeCounts[l] = (exchangeCounts[l] || 0) + 1; }
+  const fundingSummary = {
+    covered: fundedSet.length, total: members.size, private: fundedSet.filter((a) => !fundEx(a)).length,
+    exchanges: Object.entries(exchangeCounts).sort((a, b) => b[1] - a[1]).map(([label, n]) => ({ label, n })),
+    sharedFunders: funderGroups.length,
+  };
+
   const out = { updated: iso(nowTs), spot, minInvest: MIN_INVEST, minRoi: MIN_ROI, high: HIGH, minReentry: MIN_REENTRY,
     stats: { cohort: cohort.length, reentrants: reentrants.length, cycle: cycle.length, fresh: fresh.length,
       clusters: clusters.length,
       cycleSoldHigh: rnd(cycle.reduce((s, r) => s + r.soldHigh, 0)),
       cycleReinvest: rnd(cycle.reduce((s, r) => s + r.dRally, 0)),
+      cycleEarlyBought: rnd(cycle.reduce((s, r) => s + r.earlyBought, 0)),
+      cycleRallyBought: rnd(cycle.reduce((s, r) => s + r.rallyBought, 0)),
       freshUsd: rnd(fresh.reduce((s, r) => s + r.firstBuyUsd, 0)),
       reentrantRealized: rnd(reentrants.reduce((s, r) => s + r.realized, 0)),
       reentrantReinvest30d: rnd(reentrants.reduce((s, r) => s + r.d30, 0)) },
+    funding: fundingSummary,
     cycle: cycle.slice(0, 60), fresh: fresh.slice(0, 60), cohort: cohort.slice(0, 100), reentrants: reentrants.slice(0, 100),
-    buysRecent, clusters: clusters.slice(0, 40), detail };
+    buysRecent, clusters: clusters.slice(0, 40), surfaced: [...members], detail };
   await writeFile("public/smart-money.json", JSON.stringify(out));
 
   console.log(`spot $${spot.toFixed(4)}  ·  high≥$${HIGH}  early<${iso(EARLY)}  rally≥${iso(RALLY)}`);

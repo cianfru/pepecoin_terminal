@@ -625,7 +625,10 @@ export function SmartMoneyPanel() {
   if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
   const d = feed.data, s = d.stats || {};
   const cycle = d.cycle || [], fresh = d.fresh || [], clusters = d.clusters || [], reent = d.reentrants || [];
+  const fund = d.funding || null;
   const dt = (r) => <>{r.first} <span style={{ color: C.dim }}>@{fmtUsd(r.firstPrice)}</span></>;
+  const sim = (x) => x >= 0.5 && x <= 2;                         // rally re-buy is a similar-size bag to the run-up
+  const efund = (r) => r.ethFunder ? (r.ethLabel ? <span className="dim">{r.ethLabel}</span> : <Addr a={r.ethFunder} />) : <span className="dim">—</span>;
   return (
     <div>
       <p className="q">Who's actually behind the {d.spot ? "rally" : "move"} — under the hood. Three reads, hardest signal first: wallets that <b>bought early, sold into the top, and are buying again now</b>; brand-<b>new wallets</b> that showed up and bought big; and which of these wallets are <b>related by token flow</b>. Click any address for its full buy/sell history over the price line.</p>
@@ -638,32 +641,48 @@ export function SmartMoneyPanel() {
 
       <div className="buy-h warn">★ bought early · sold the top · buying the rally again</div>
       <div className="tscroll"><table className="dtable"><thead><tr>
-        <th>wallet</th><th>first buy</th><th className="r">sold near top</th><th className="r">realized</th><th className="r">buying rally</th><th className="r">bag now</th></tr></thead>
+        <th>wallet</th><th>first buy</th><th className="r">sold near top</th><th className="r">bought then → now</th><th className="r">buying rally</th><th className="r">bag now</th></tr></thead>
         <tbody>{cycle.slice(0, 25).map((r) => (
           <tr key={r.a}><td><Addr a={r.a} /></td><td>{dt(r)}</td><td className="r pos">{money(r.soldHigh)}</td>
-            <td className={"r " + (r.realized >= 0 ? "pos" : "neg")}>{money(r.realized)}</td>
+            <td className="r">{fmtTok(r.earlyBought)} <span style={{ color: C.dim }}>→</span> {r.rallyBought > 0 ? <b style={{ color: C.cyan }}>{fmtTok(r.rallyBought)}</b> : <span style={{ color: C.dim }}>—</span>}{r.thenNow > 0 && <span style={{ color: sim(r.thenNow) ? C.amber : C.dim, fontSize: 10 }}> {r.thenNow >= 1 ? r.thenNow.toFixed(1) : "." + Math.round(r.thenNow * 100)}×</span>}</td>
             <td className={"r " + (r.dRally > 0 ? "pos" : "dim")}>{r.dRally > 0 ? "+" + fmtTok(r.dRally) : "—"}</td>
             <td className="r">{fmtTok(r.bal)}</td></tr>))}</tbody></table></div>
-      <p className="foot">These are the wallets your thesis is about: bought in near launch, distributed millions at ≥{fmtUsd(d.high)} (into / around the $7.43 top), and are net buyers again in the current rally. "sold near top" is USD proceeds sold at ≥{fmtUsd(d.high)}. Suggestive of insiders cycling — the drill-down + Etherscan let you judge.</p>
+      <p className="foot">These are the wallets your thesis is about: bought in near launch, distributed millions at ≥{fmtUsd(d.high)} (into / around the $7.43 top), and are net buyers again in the current rally. <b>"bought then → now"</b> compares the tokens they accumulated in the first run-up to what they're buying today — an <span style={{ color: C.amber }}>amber ratio</span> flags a re-buy of a similar-size bag (0.5–2× of the original), the coordinated-fingerprint tell. Suggestive of insiders cycling — the drill-down + Etherscan let you judge.</p>
 
       <div className="buy-h good" style={{ marginTop: 16 }}>▲ fresh wallets — showed up, bought big, still holding</div>
       <div className="tscroll"><table className="dtable"><thead><tr>
-        <th>wallet</th><th>first ever</th><th className="r">bought</th><th className="r">bag</th><th>seeded by</th></tr></thead>
+        <th>wallet</th><th>first ever</th><th className="r">bought</th><th className="r">bag</th><th>token seeded by</th><th>ETH funded by</th></tr></thead>
         <tbody>{fresh.slice(0, 25).map((r) => (
           <tr key={r.a}><td><Addr a={r.a} /></td><td>{dt(r)}</td><td className="r pos">{money(r.firstBuyUsd)}</td>
-            <td className="r">{fmtTok(r.bal)}</td><td>{r.seeder ? <Addr a={r.seeder} /> : <span className="dim">Uniswap / exchange</span>}</td></tr>))}</tbody></table></div>
-      <p className="foot">No pepecoin history before the last few weeks, bought a large amount, haven't sold. The "seeded by" column is who sent them their first pepecoin — a real EOA there (not the pool) is a coordination tell. <b>Note:</b> this can't see ETH funding (e.g. a Coinbase→fresh-wallet seed) — that needs an ETH-layer lookup; here we only see pepecoin flow.</p>
+            <td className="r">{fmtTok(r.bal)}</td><td>{r.seeder ? <Addr a={r.seeder} /> : <span className="dim">Uniswap / pool</span>}</td>
+            <td>{efund(r)}</td></tr>))}</tbody></table></div>
+      <p className="foot">No pepecoin history before the last few weeks, bought a large amount, haven't sold. <b>"token seeded by"</b> = who sent the first pepecoin; <b>"ETH funded by"</b> = who sent the wallet its first ETH (from the ETH graph). A real EOA in either column — especially the <i>same</i> address in both, or one shared across several rows — is a coordination tell. An exchange name (Coinbase, Binance…) is a normal self-custody withdrawal.</p>
+
+      {fund && fund.covered > 0 && <>
+        <div className="buy-h" style={{ marginTop: 16, color: C.cyan }}>◆ how the surfaced wallets were funded (ETH)</div>
+        <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+          <div className="ov-kpi"><div className="k">private-EOA funded</div><div className="v">{fmtNum(fund.private)}</div><div className="n">of {fmtNum(fund.covered)} resolved</div></div>
+          <div className="ov-kpi"><div className="k">shared private funders</div><div className={"v " + (fund.sharedFunders ? "warn" : "")}>{fmtNum(fund.sharedFunders)}</div><div className="n">one address → 2+ wallets</div></div>
+          <div className="ov-kpi"><div className="k">exchange-funded</div><div className="v">{fmtNum(fund.exchanges.reduce((a, e) => a + e.n, 0))}</div><div className="n">{fund.exchanges.slice(0, 3).map((e) => e.label + " " + e.n).join(" · ") || "—"}</div></div>
+        </div>
+      </>}
 
       {clusters.length > 0 && <>
-        <div className="buy-h" style={{ marginTop: 16, color: C.cyan }}>◆ related wallets — clustered by token flow</div>
-        {clusters.slice(0, 12).map((c) => (
+        <div className="buy-h" style={{ marginTop: 16, color: C.cyan }}>◆ related wallets — clustered by token flow + ETH funding</div>
+        {clusters.slice(0, 14).map((c) => {
+          const via = [];
+          if (c.seeders?.length) via.push("shared token seeder");
+          if (c.ethFunders?.length) via.push("shared ETH funder");
+          if (c.links?.length) via.push(c.links.length + " token transfer" + (c.links.length > 1 ? "s" : ""));
+          return (
           <div className="clus" key={c.id}>
             <div className="clus-h">
               <span className="cid">group {c.id}</span>
               <span className="cmeta">{c.size} wallets</span>
               <span className="cmeta">sold near top {money(c.soldHigh)}</span>
+              {(c.earlyBought > 0 || c.rallyBought > 0) && <span className="cmeta">bought {fmtTok(c.earlyBought)} then → <span style={{ color: c.rallyBought > 0 ? C.cyan : C.dim }}>{c.rallyBought > 0 ? fmtTok(c.rallyBought) : "—"}</span> now</span>}
               <span className="cmeta" style={{ color: c.dRally > 0 ? C.green : C.dim }}>rally {c.dRally > 0 ? "+" + fmtTok(c.dRally) : "flat"}</span>
-              {c.seeders?.length > 0 && <span className="cmeta">seeder {c.seeders.map((sd) => <Addr key={sd} a={sd} />)}</span>}
+              {via.length > 0 && <span className="cmeta" style={{ color: C.cyan }}>via {via.join(" + ")}</span>}
               {c.flagged && <span className="cflag">large — unverified</span>}
             </div>
             <div className="clus-b">{c.members.map((m) => (
@@ -671,12 +690,13 @@ export function SmartMoneyPanel() {
                 <Addr a={m.a} />
                 <span className="cv">sold top {money(m.soldHigh)}</span>
                 <span className={"cv" + (m.dRally > 0 ? "" : " neg")}>{m.dRally > 0 ? "buying +" + fmtTok(m.dRally) : m.bal > 0 ? "holding " + fmtTok(m.bal) : "out"}</span>
-                {m.seeder && <span className="clus-why">← {shortAddr(m.seeder)}</span>}
+                {m.seeder && <span className="clus-why">token ← {shortAddr(m.seeder)}</span>}
+                {m.ethFunder && <span className="clus-why">ETH ← {m.ethLabel || shortAddr(m.ethFunder)}</span>}
               </div>))}
-              {c.links?.length > 0 && <div className="clus-why" style={{ marginTop: 4 }}>{c.links.length} direct token transfer{c.links.length > 1 ? "s" : ""} between members</div>}
             </div>
-          </div>))}
-        <p className="foot">Wallets grouped when they share a common pepecoin seeder (one address sent several of them their first coins) or moved tokens between each other. Distributor-scale seeders (feeding many wallets) are excluded so one router can't fuse the whole graph. Token-flow linkage only — not ETH funding, not proof of one owner.</p>
+          </div>);
+        })}
+        <p className="foot">Wallets grouped when they share a common pepecoin seeder, moved tokens between each other, <b>or share a private ETH funder</b> (one address sent several of them their first ETH — the token graph can't see this). Exchange funders and distributor-scale addresses never fuse a group, so one hot wallet or router can't merge the graph. A group linked by <i>both</i> a shared token seeder and a shared ETH funder is near-certain common control — still evidence, not courtroom proof.</p>
       </>}
 
       {reent.length > 0 && <>
@@ -711,7 +731,7 @@ export function WalletDetail({ addr }) {
     ["realized P&L", money(row.realized), row.realized >= 0 ? "pos" : "neg"],
     ["realized ROI", row.roi + "×", "pos"],
     ["current bag", fmtTok(row.bal), ""],
-    ["avg cost", fmtUsd(row.avgCost), ""],
+    ["bought then → now", fmtTok(row.earlyBought || 0) + " → " + fmtTok(row.rallyBought || 0), row.thenNow >= 0.5 && row.thenNow <= 2 ? "pos" : ""],
     ["sold near top", money(row.soldHigh || 0), "pos"],
     ["buying rally", (row.dRally >= 0 ? "+" : "") + fmtTok(row.dRally || 0), row.dRally > 0 ? "pos" : "dim"],
   ] : [];
@@ -719,6 +739,11 @@ export function WalletDetail({ addr }) {
   return (
     <div>
       <p className="q">Every buy (green) and sell (red) this wallet made, sized by amount, on the real price line. <a href={`https://etherscan.io/address/${addr}`} target="_blank" rel="noreferrer">Etherscan ↗</a> · <a href={`https://app.zerion.io/${addr}/overview`} target="_blank" rel="noreferrer">Zerion ↗</a></p>
+      {row && (row.ethFunder || row.seeder) && <p className="foot" style={{ marginTop: -4 }}>
+        {row.ethFunder && <>first ETH from {row.ethLabel ? <b>{row.ethLabel}</b> : <Addr a={row.ethFunder} />}{row.seeder ? " · " : ""}</>}
+        {row.seeder && <>first pepecoin from <Addr a={row.seeder} /></>}
+        {row.ethFunder && row.seeder && row.ethFunder === row.seeder && <b style={{ color: C.amber }}> — same address funded ETH & seeded tokens</b>}
+      </p>}
       {row && <div className="ov-kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
         {tiles.map(([k, v, cls]) => <div className="ov-kpi" key={k}><div className="k">{k}</div><div className={"v " + cls}>{v}</div></div>)}
       </div>}
