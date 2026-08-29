@@ -41,7 +41,37 @@ repo's CLAUDE.md works). Read it first.
 - **⚠ Cosmetic TODO:** the engine still prints "SPX" in a few `console.log` labels (whales / self-
   moves logs) and writes `cex-sankey.json` etc. Harmless (log strings only); tidy when convenient.
 
+## ✅✅ FIRST REAL DATA PULLED — ZERO-COST via public RPC (2026-08-29)
+- **Consumption finding (owner asked "verify minimal consumption"):** BigQuery's `token_transfers` does
+  NOT prune by token → filtering pepecoin still scans the whole table's columns (~500 GB, same as SPX);
+  fits the free 1 TB/mo once but is NOT tiny. The Dune MCP key is `suspended_account` (separate from any
+  pipeline key). **The genuinely minimal path = public RPC `eth_getLogs`, ZERO cost to any quota.**
+- **How the pull was done (`scratchpad/pull_pepecoin.py`, reusable):** `eth_getCode` binary-search finds
+  the deploy block (17,147,424, first transfer 2023-04-28), then adaptive `eth_getLogs` paging over the
+  Transfer topic scoped to the contract. **drpc + mevblocker are the two endpoints that enrich each log
+  with `blockTimestamp`** (exact canonical timestamps, no per-block lookups) AND survive bursts — the
+  others (publicnode/merkle/1rpc) reject ranged getLogs. ⚠ The agent proxy 403s large responses under
+  burst → treat 403/429/413 as a shrink signal + light pacing (baked into the script). **675,019 transfers
+  → `transfers.csv`** (mint row = 133,769,420 tokens ✓ matches supply; 0 bad rows). Price series from
+  **DeFiLlama** (free, no key): 1,124 daily prices 2023-05-10→today → `prices.csv` (ATH ~$7.43, now ~$0.24).
+  Both CSVs are gitignored (large/raw; the archive belongs in a release asset later).
+- **✅ First `onchain.json` produced & VALIDATED** (`--decimals=18`, 9s on 675k transfers): held supply
+  **107.4M ≈ circulating** (133.77M − 26.1M burn) so decimals scaling is exact; top wallets **match
+  ethplorer's top holders exactly** (independent check). Real numbers: **holders 16,495 · realized price
+  ~$1.51 · MVRV 0.156× (deeply underwater — avg holder bought into the run to the $7.43 ATH) · supply-in-
+  profit 36% · SOPR 0.42 · top-100 59.5% · 59.7% of supply held 1y+.** These are an UPPER BOUND on
+  concentration until the exclude list firms up (below).
+- **⚠ Cosmetic:** engine still prints "SPX" in a few console labels + writes `cex-sankey.json` etc. Harmless.
+
 ## 🔲 #1 DATA-HONESTY TASK — build out `EXCLUDE_LABELS`
+- **Added 2026-08-29 (unambiguous public infra, from the engine's exchange-candidate detector):** CoW
+  Protocol GPv2Settlement, 1inch v6, LI.FI Diamond (kind:"mm"), + Gate.io `0x0d07…` (cross-ref from SPX).
+  Effect on top-line ~nil (routers hold ~0 at rest) but they were fusing the 303-wallet super-cluster.
+- **🔲 OWNER TO VERIFY on Etherscan/Bubblemaps (materially moves concentration):**
+  `0xddd23787a6b80a794d952f5fb036d0b31a8e6aff` — the #1 "holder" at 4.75M but 811 counterparties + big 30d
+  outflow → almost certainly a CEX (dissolves the 303-cluster + trims top-100 when excluded). Also verify
+  `0x74de5d4f…` (likely MetaMask Swap Router → mm), `0xafd18a20…`, `0xb92fe925…`, and find the Uniswap
+  V2/V3 pepecoin **LP pool(s)** (kind:"lp"). All flagged inline in the engine's EXCLUDE_LABELS block.
 - The engine's `EXCLUDE_LABELS` map is the ONE piece of real token-specific research. It removes
   infrastructure (pools / bridge / CEX / burn) from the holder reconstruction. **Getting it wrong
   OVERSTATES concentration** — the exact dishonesty this project guards against — so **never guess an

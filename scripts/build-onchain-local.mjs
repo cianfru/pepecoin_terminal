@@ -45,11 +45,24 @@ export const EXCLUDE_LABELS = {
   //    canonVenue() below collapses "<Venue> 2"/"<Venue>-linked" into the parent venue, so name hot wallets that way.
   "0x0000000000000000000000000000000000000000": { name: "null / mint source", kind: "null" },
   "0x000000000000000000000000000000000000dead": { name: "burn", kind: "burn" }, // ~26.14M pepecoin burned (~19.5% of supply)
-  // ── CROSS-REFERENCED from the SPX exclude map (a shared exchange hot wallet holds pepecoin too). VERIFY on Etherscan. ──
-  "0x9642b23ed1e01df1092b92641051881a322f5d4e": { name: "MEXC 2", kind: "cex" }, // top-10 pepecoin holder; tagged "MEXC 2" in the SPX map
-  // 🔲 TODO (owner + Claude, mirroring how SPX's list was built): identify the Uniswap V2/V3 pepecoin pools (kind:"lp"),
-  //    the CEX hot wallets (kind:"cex"), and any bridge (kind:"bridge") from Bubblemaps/Etherscan top-holders, then add
-  //    each CONFIRMED one here. Until then the concentration/holder metrics read as an UPPER BOUND on real concentration.
+  // ── CROSS-REFERENCED from the SPX exclude map (shared exchange hot wallets hold pepecoin too). VERIFY on Etherscan. ──
+  "0x9642b23ed1e01df1092b92641051881a322f5d4e": { name: "MEXC 2", kind: "cex" },   // top-10 pepecoin holder; tagged "MEXC 2" in the SPX map
+  "0x0d0707963952f2fba59dd06f2b425ace40b492fe": { name: "Gate.io 1", kind: "cex" }, // exchange-candidate detector hit; tagged Gate.io in the SPX map
+  // ── PUBLICLY-KNOWN routers / settlement contracts (canonical addresses, universal infra — NOT holders; they hold ~0 at
+  //    rest and pass tokens through). Excluding them is the SPX "untagged router → supernode" hygiene fix: here they were
+  //    fusing the 303-wallet super-cluster. kind:"mm" = trading infrastructure, excluded from holders, attributed to no venue.
+  "0x9008d19f58aabd9ed0d60971565aa8510560ab41": { name: "CoW Protocol: GPv2Settlement", kind: "mm" },
+  "0x111111125421ca6dc452d289314280a0f8842a65": { name: "1inch v6: Aggregation Router", kind: "mm" },
+  "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae": { name: "LI.FI: Diamond", kind: "mm" },
+  // 🔲 OWNER TO VERIFY (biggest concentration impact) — the exchange-candidate detector flags these as high-throughput,
+  //    many-counterparty wallets that look like infrastructure, NOT holders. Confirm each on Etherscan/Bubblemaps, then add
+  //    with the right kind (cex/lp/mm). The top one is the #1 "holder" so it materially moves top-10/top-100 concentration:
+  //      0xddd23787a6b80a794d952f5fb036d0b31a8e6aff  — 4.75M "holder", 811 counterparties, big 30d outflow → likely CEX
+  //      0x74de5d4fcbf63e00296fd95d33236b9794016631  — likely MetaMask Swap Router (router → kind:"mm")
+  //      0xafd18a20aff41b6da320773c6aaf796477728ceb  — high two-way throughput; verify
+  //      0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f  — high two-way throughput; verify
+  // 🔲 ALSO STILL TODO: the Uniswap V2/V3 pepecoin LP pool(s) (kind:"lp"). Until this list firms up, concentration /
+  //    holder metrics read as an UPPER BOUND on real concentration — say so on any surface that shows them.
 };
 
 // The set the FIFO engine excludes from holder reconstruction — DERIVED from EXCLUDE_LABELS so
