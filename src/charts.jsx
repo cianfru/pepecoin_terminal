@@ -629,6 +629,9 @@ export function SmartMoneyPanel() {
   const dt = (r) => <>{r.first} <span style={{ color: C.dim }}>@{fmtUsd(r.firstPrice)}</span></>;
   const sim = (x) => x >= 0.5 && x <= 2;                         // rally re-buy is a similar-size bag to the run-up
   const efund = (r) => r.ethFunder ? (r.ethLabel ? <span className="dim">{r.ethLabel}</span> : <Addr a={r.ethFunder} />) : <span className="dim">—</span>;
+  const cw = (r) => r.contract ? <span title="this address is a smart contract (router / MM / vault), not a person" style={{ color: C.amber, fontSize: 9, marginLeft: 4 }}>⚙ contract</span> : null;
+  const realBuyers = cycle.filter((r) => !r.contract && r.rMktNet > 0);
+  const nContracts = cycle.filter((r) => r.contract).length;
   return (
     <div>
       <p className="q">Who's actually behind the {d.spot ? "rally" : "move"} — under the hood. Three reads, hardest signal first: wallets that <b>bought early, sold into the top, and are buying again now</b>; brand-<b>new wallets</b> that showed up and bought big; and which of these wallets are <b>related by token flow</b>. Click any address for its full buy/sell history over the price line.</p>
@@ -639,21 +642,25 @@ export function SmartMoneyPanel() {
         <div className="ov-kpi"><div className="k">related groups</div><div className="v">{fmtNum(s.clusters)}</div><div className="n">token-flow clusters</div></div>
       </div>
 
-      <div className="buy-h warn">★ bought early · sold the top · buying the rally again</div>
+      <div className="buy-h warn">★ bought early · sold the top · and now?</div>
+      {s.cycleMktNet != null && <div className="ov-lead" style={{ margin: "0 2px 12px" }}>
+        Are they reaccumulating? On the open market, barely. Across all {s.cycle} of these wallets, real net DEX buying in this rally is only <b style={{ color: s.cycleMktNet > 0 ? C.green : C.warn }}>{fmtTok(s.cycleMktNet)} tokens</b> (~{money((s.cycleMktNet || 0) * d.spot)}) — the rest is <b>{fmtTok(s.cycleCtrWd)}</b> withdrawn from DeFi vaults (bcred etc — not a buy) and <b>{fmtTok(s.cycleWalIn)}</b> moved wallet-to-wallet. And <b style={{ color: C.amber }}>{nContracts} of the {s.cycle} are smart contracts</b> (routers/MMs/vaults), not people. Strip those out and just <b>{realBuyers.length} real wallets</b> are actually buying — for ~{money(realBuyers.reduce((a, r) => a + r.rMktNet * d.spot, 0))} between them. This cohort is <b>not</b> meaningfully reaccumulating on the open market.
+      </div>}
       <div className="tscroll"><table className="dtable"><thead><tr>
-        <th>wallet</th><th>first buy</th><th className="r">sold near top</th><th className="r">bought then → now</th><th className="r">buying rally</th><th className="r">bag now</th></tr></thead>
+        <th>wallet</th><th>first buy</th><th className="r">sold near top</th><th className="r">bought then → now</th><th className="r">real market buy</th><th className="r">from vault / wallet</th><th className="r">bag</th></tr></thead>
         <tbody>{cycle.slice(0, 25).map((r) => (
-          <tr key={r.a}><td><Addr a={r.a} /></td><td>{dt(r)}</td><td className="r pos">{money(r.soldHigh)}</td>
+          <tr key={r.a}><td><Addr a={r.a} />{cw(r)}</td><td>{dt(r)}</td><td className="r pos">{money(r.soldHigh)}</td>
             <td className="r">{fmtTok(r.earlyBought)} <span style={{ color: C.dim }}>→</span> {r.rallyBought > 0 ? <b style={{ color: C.cyan }}>{fmtTok(r.rallyBought)}</b> : <span style={{ color: C.dim }}>—</span>}{r.thenNow > 0 && <span style={{ color: sim(r.thenNow) ? C.amber : C.dim, fontSize: 10 }}> {r.thenNow >= 1 ? r.thenNow.toFixed(1) : "." + Math.round(r.thenNow * 100)}×</span>}</td>
-            <td className={"r " + (r.dRally > 0 ? "pos" : "dim")}>{r.dRally > 0 ? "+" + fmtTok(r.dRally) : "—"}</td>
+            <td className={"r " + (r.rMktNet > 0 ? "pos" : r.rMktNet < 0 ? "neg" : "dim")}>{r.rMktNet ? (r.rMktNet > 0 ? "+" : "−") + fmtTok(Math.abs(r.rMktNet)) : "—"}</td>
+            <td className="r dim">{(r.rCtrWd > 0 || r.rWalIn > 0) ? [r.rCtrWd > 0 ? "vault " + fmtTok(r.rCtrWd) : null, r.rWalIn > 0 ? "wallet " + fmtTok(r.rWalIn) : null].filter(Boolean).join(" · ") : "—"}</td>
             <td className="r">{fmtTok(r.bal)}</td></tr>))}</tbody></table></div>
-      <p className="foot">These are the wallets your thesis is about: bought in near launch, distributed millions at ≥{fmtUsd(d.high)} (into / around the $7.43 top), and are net buyers again in the current rally. <b>"bought then → now"</b> compares the tokens they accumulated in the first run-up to what they're buying today — an <span style={{ color: C.amber }}>amber ratio</span> flags a re-buy of a similar-size bag (0.5–2× of the original), the coordinated-fingerprint tell. Suggestive of insiders cycling — the drill-down + Etherscan let you judge.</p>
+      <p className="foot">Bought in near launch, distributed millions at ≥{fmtUsd(d.high)} (into / around the $7.43 top). <b>"real market buy"</b> = tokens net-bought from the DEX pool during the rally (buys − sells); <b>"from vault / wallet"</b> = tokens received from a DeFi contract (a withdrawal) or another wallet (a shuffle / OTC) — which are <i>not</i> open-market demand. Owner-caught: counting vault withdrawals (e.g. the bcred contract) as buys had overstated the reaccumulation. <b>"bought then → now"</b> compares run-up accumulation to rally inflow; an <span style={{ color: C.amber }}>amber ratio</span> would flag a similar-size re-buy — but read it against the market-buy column, since much of "now" is withdrawals.</p>
 
       <div className="buy-h good" style={{ marginTop: 16 }}>▲ fresh wallets — showed up, bought big, still holding</div>
       <div className="tscroll"><table className="dtable"><thead><tr>
         <th>wallet</th><th>first ever</th><th className="r">bought</th><th className="r">bag</th><th>token seeded by</th><th>ETH funded by</th></tr></thead>
         <tbody>{fresh.slice(0, 25).map((r) => (
-          <tr key={r.a}><td><Addr a={r.a} /></td><td>{dt(r)}</td><td className="r pos">{money(r.firstBuyUsd)}</td>
+          <tr key={r.a}><td><Addr a={r.a} />{cw(r)}</td><td>{dt(r)}</td><td className="r pos">{money(r.firstBuyUsd)}</td>
             <td className="r">{fmtTok(r.bal)}</td><td>{r.seeder ? <Addr a={r.seeder} /> : <span className="dim">Uniswap / pool</span>}</td>
             <td>{efund(r)}</td></tr>))}</tbody></table></div>
       <p className="foot">No pepecoin history before the last few weeks, bought a large amount, haven't sold. <b>"token seeded by"</b> = who sent the first pepecoin; <b>"ETH funded by"</b> = who sent the wallet its first ETH (from the ETH graph). A real EOA in either column — especially the <i>same</i> address in both, or one shared across several rows — is a coordination tell. An exchange name (Coinbase, Binance…) is a normal self-custody withdrawal.</p>
@@ -681,15 +688,16 @@ export function SmartMoneyPanel() {
               <span className="cmeta">{c.size} wallets</span>
               <span className="cmeta">sold near top {money(c.soldHigh)}</span>
               {(c.earlyBought > 0 || c.rallyBought > 0) && <span className="cmeta">bought {fmtTok(c.earlyBought)} then → <span style={{ color: c.rallyBought > 0 ? C.cyan : C.dim }}>{c.rallyBought > 0 ? fmtTok(c.rallyBought) : "—"}</span> now</span>}
-              <span className="cmeta" style={{ color: c.dRally > 0 ? C.green : C.dim }}>rally {c.dRally > 0 ? "+" + fmtTok(c.dRally) : "flat"}</span>
+              <span className="cmeta" style={{ color: c.rMktNet > 0 ? C.green : c.rMktNet < 0 ? C.warn : C.dim }}>real market buy {c.rMktNet ? (c.rMktNet > 0 ? "+" : "−") + fmtTok(Math.abs(c.rMktNet)) : "0"}</span>
+              {c.rCtrWd > 0 && <span className="cmeta dim">vault withdraw {fmtTok(c.rCtrWd)}</span>}
               {via.length > 0 && <span className="cmeta" style={{ color: C.cyan }}>via {via.join(" + ")}</span>}
               {c.flagged && <span className="cflag">large — unverified</span>}
             </div>
             <div className="clus-b">{c.members.map((m) => (
               <div className="clus-row" key={m.a}>
-                <Addr a={m.a} />
+                <Addr a={m.a} />{m.contract && <span title="smart contract, not a person" style={{ color: C.amber, fontSize: 9 }}>⚙</span>}
                 <span className="cv">sold top {money(m.soldHigh)}</span>
-                <span className={"cv" + (m.dRally > 0 ? "" : " neg")}>{m.dRally > 0 ? "buying +" + fmtTok(m.dRally) : m.bal > 0 ? "holding " + fmtTok(m.bal) : "out"}</span>
+                <span className={"cv" + (m.rMktNet > 0 ? "" : " neg")}>{m.rMktNet > 0 ? "mkt-buy +" + fmtTok(m.rMktNet) : m.rCtrWd > 0 ? "vault withdraw " + fmtTok(m.rCtrWd) : m.bal > 0 ? "holding " + fmtTok(m.bal) : "out"}</span>
                 {m.seeder && <span className="clus-why">token ← {shortAddr(m.seeder)}</span>}
                 {m.ethFunder && <span className="clus-why">ETH ← {m.ethLabel || shortAddr(m.ethFunder)}</span>}
               </div>))}
@@ -731,9 +739,9 @@ export function WalletDetail({ addr }) {
     ["realized P&L", money(row.realized), row.realized >= 0 ? "pos" : "neg"],
     ["realized ROI", row.roi + "×", "pos"],
     ["current bag", fmtTok(row.bal), ""],
-    ["bought then → now", fmtTok(row.earlyBought || 0) + " → " + fmtTok(row.rallyBought || 0), row.thenNow >= 0.5 && row.thenNow <= 2 ? "pos" : ""],
     ["sold near top", money(row.soldHigh || 0), "pos"],
-    ["buying rally", (row.dRally >= 0 ? "+" : "") + fmtTok(row.dRally || 0), row.dRally > 0 ? "pos" : "dim"],
+    ["real market buy (rally)", (row.rMktNet >= 0 ? "+" : "−") + fmtTok(Math.abs(row.rMktNet || 0)), row.rMktNet > 0 ? "pos" : row.rMktNet < 0 ? "neg" : "dim"],
+    ["vault / wallet inflow", fmtTok((row.rCtrWd || 0) + (row.rWalIn || 0)), "dim"],
   ] : [];
   const tf = (t) => new Date(t).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
   return (

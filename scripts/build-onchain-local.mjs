@@ -58,6 +58,11 @@ export const EXCLUDE_LABELS = {
   //    pepecoin reserve; the 811 counterparties + big two-way throughput are swaps, not a whale. Excluding it (kind:"lp" =
   //    liquid/float) dissolves the fused 303-wallet super-cluster and drops the raw concentration to the real number.
   "0xddd23787a6b80a794d952f5fb036d0b31a8e6aff": { name: "Uniswap V2: pepecoin", kind: "lp" },
+  // ── DeFi contract (owner-flagged + eth_getCode-CONFIRMED as a contract, 2026-08-29). "bcred" lending/credit vault:
+  //    61 wallets deposited (~11M in), 41 withdrew (~7M out), ~4M still locked. Receiving pepecoin from it is a
+  //    WITHDRAWAL, not a market buy — counting it as a buy inflated several cycle wallets' "reaccumulation". kind:"defi"
+  //    excludes it from holders (contract-custodied on behalf of depositors) and marks its flows as non-market movement.
+  "0xb0974f12c7ba2f1dc31f2c2545b71ef1998815a4": { name: "bcred (DeFi vault)", kind: "defi" },
   // 🔲 OWNER TO VERIFY (lower impact) — exchange-candidate detector hits that look like infra, not holders. Confirm on
   //    Etherscan/Bubblemaps, then add with the right kind (cex/lp/mm):
   //      0x74de5d4fcbf63e00296fd95d33236b9794016631  — likely MetaMask Swap Router (router → kind:"mm")

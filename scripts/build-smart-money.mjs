@@ -72,12 +72,23 @@ async function main() {
   const ZERO = "0x0000000000000000000000000000000000000000";
   const ex = (a) => EXCLUDE.has(a) || !a || a === ZERO;
 
+  // ── source classification: separate a REAL MARKET BUY (from the DEX pool/routers) from a CONTRACT
+  //    WITHDRAWAL (bcred & other vaults — receiving your own deposited tokens back, NOT a buy) and a plain
+  //    WALLET transfer. Counting contract withdrawals as buys inflated the "reaccumulation" read (owner caught this).
+  let contractCache = {};
+  try { contractCache = JSON.parse(await readFile("public/contract-types.json", "utf8")).addrs || {}; } catch { contractCache = {}; }
+  const kindOf = (a) => EXCLUDE_LABELS[a]?.kind || null;
+  const isDex = (a) => { const k = kindOf(a); return k === "lp" || k === "mm"; };       // the pool / routers = market
+  const isContractSrc = (a) => kindOf(a) === "defi" || contractCache[a] === true;        // a vault/contract = withdrawal
+  const isCexAddr = (a) => kindOf(a) === "cex";
+
   // per-wallet state
   const W = new Map();
   const get = (a) => { let w = W.get(a); if (!w) W.set(a, (w = {
     lots: [], bal: 0, invested: 0, proceeds: 0, costSold: 0, realized: 0, first: 0, firstPrice: 0,
     bought: 0, sold: 0, soldHigh: 0, peakBal: 0, seeder: null, firstBuyUsd: 0, firstDay: 0,
     earlyBought: 0, rallyBought: 0,
+    rMktBuy: 0, rMktSell: 0, rCtrWd: 0, rWalIn: 0, rCexIn: 0, // rally-window inflow by source (+ market sells)
     soldOut: false, reentered: false, b7: null, b30: null, bRally: null,
   })); return w; };
   let snap7 = false, snap30 = false, snapRally = false;
@@ -93,7 +104,13 @@ async function main() {
       if (!w.first) { w.first = t.ts; w.firstPrice = price; w.firstDay = dayFloor(t.ts); w.seeder = ex(t.from) ? null : t.from; }
       if (t.ts <= w.firstDay + DAY) w.firstBuyUsd += t.amt * price; // buys within the first day
       if (t.ts < ATH) w.earlyBought += t.amt;   // tokens accumulated during the first run-up (pre-top)
-      if (t.ts >= RALLY) w.rallyBought += t.amt; // tokens bought in the current rally
+      if (t.ts >= RALLY) {                       // rally-window inflow, classified by where it came FROM
+        w.rallyBought += t.amt;
+        if (isDex(t.from)) w.rMktBuy += t.amt;            // real DEX purchase
+        else if (isContractSrc(t.from)) w.rCtrWd += t.amt; // withdrawal from a vault/contract (NOT a buy)
+        else if (isCexAddr(t.from)) w.rCexIn += t.amt;     // from an exchange
+        else w.rWalIn += t.amt;                            // wallet-to-wallet (OTC / shuffle / p2p)
+      }
       if (w.bal > w.peakBal) w.peakBal = w.bal;
     }
     if (!ex(t.from)) {
@@ -102,6 +119,7 @@ async function main() {
       while (rem > EPS && w.lots.length) { const lot = w.lots[0]; const take = Math.min(rem, lot.q); cost += take * lot.p; lot.q -= take; rem -= take; if (lot.q <= EPS) w.lots.shift(); }
       w.proceeds += t.amt * price; w.costSold += cost; w.realized += t.amt * price - cost; w.bal -= t.amt; w.sold += t.amt;
       if (price >= HIGH) w.soldHigh += t.amt * price;
+      if (t.ts >= RALLY && isDex(t.to)) w.rMktSell += t.amt; // sold back onto the DEX during the rally
       if (w.bal < EPS) { w.bal = 0; w.soldOut = true; w.lots = []; }
     }
   }
@@ -122,6 +140,7 @@ async function main() {
       d7, d30, dRally, first: iso(w.first), firstTs: w.first, firstPrice: w.firstPrice, firstBuyUsd: w.firstBuyUsd,
       bought: w.bought, sold: w.sold, soldFrac, soldHigh: w.soldHigh, peakBal: w.peakBal,
       earlyBought: w.earlyBought, rallyBought: w.rallyBought,
+      rMktBuy: w.rMktBuy, rMktSell: w.rMktSell, rMktNet: w.rMktBuy - w.rMktSell, rCtrWd: w.rCtrWd, rWalIn: w.rWalIn, rCexIn: w.rCexIn,
       seeder: w.seeder, soldOut: w.soldOut, reentered: w.reentered });
   }
   const byAddr = new Map(rows.map((r) => [r.a, r]));
@@ -140,6 +159,8 @@ async function main() {
     avgCost: rnd(r.avgCost, 6), unreal: rnd(r.unreal), d7: rnd(r.d7), d30: rnd(r.d30), dRally: rnd(r.dRally),
     first: r.first, firstPrice: rnd(r.firstPrice, 6), firstBuyUsd: rnd(r.firstBuyUsd), soldHigh: rnd(r.soldHigh),
     peakBal: rnd(r.peakBal), earlyBought: rnd(r.earlyBought), rallyBought: rnd(r.rallyBought), thenNow: rnd(thenNow(r), 2),
+    rMktNet: rnd(r.rMktNet), rMktBuy: rnd(r.rMktBuy), rCtrWd: rnd(r.rCtrWd), rWalIn: rnd(r.rWalIn),
+    contract: contractCache[r.a] === true, // this "wallet" is actually a smart contract (router/MM/vault/Safe) — not a person
     seeder: r.seeder, ethFunder: fundOf(r.a), ethLabel: fundLabel(r.a), soldOut: r.soldOut, reentered: r.reentered });
 
   // ★ CYCLE: bought EARLY, sold into the TOP for real money, BUYING the rally again
@@ -230,10 +251,13 @@ async function main() {
       bal: rnd(mem.reduce((s, r) => s + r.bal, 0)),
       earlyBought: rnd(mem.reduce((s, r) => s + r.earlyBought, 0)),
       rallyBought: rnd(mem.reduce((s, r) => s + r.rallyBought, 0)),
+      rMktNet: rnd(mem.reduce((s, r) => s + r.rMktNet, 0)),
+      rCtrWd: rnd(mem.reduce((s, r) => s + r.rCtrWd, 0)),
       seeders: [...new Set(seeders.map((sg) => sg.seeder))],
       ethFunders: [...new Set(funders.map((fg) => fg.funder))],
       members: g.map((a) => { const r = byAddr.get(a); return { a, realized: rnd(r.realized), soldHigh: rnd(r.soldHigh),
         dRally: rnd(r.dRally), bal: rnd(r.bal), earlyBought: rnd(r.earlyBought), rallyBought: rnd(r.rallyBought),
+        rMktNet: rnd(r.rMktNet), rCtrWd: rnd(r.rCtrWd), contract: contractCache[a] === true,
         seeder: r.seeder, ethFunder: fundOf(a), ethLabel: fundLabel(a), first: r.first }; }),
       links: links.filter(([f, t]) => gs.has(f) && gs.has(t)),
     };
@@ -269,6 +293,9 @@ async function main() {
       cycleReinvest: rnd(cycle.reduce((s, r) => s + r.dRally, 0)),
       cycleEarlyBought: rnd(cycle.reduce((s, r) => s + r.earlyBought, 0)),
       cycleRallyBought: rnd(cycle.reduce((s, r) => s + r.rallyBought, 0)),
+      cycleMktNet: rnd(cycle.reduce((s, r) => s + (r.rMktNet || 0), 0)),      // real net DEX buying by the cohort
+      cycleCtrWd: rnd(cycle.reduce((s, r) => s + (r.rCtrWd || 0), 0)),        // tokens pulled from vaults (not buys)
+      cycleWalIn: rnd(cycle.reduce((s, r) => s + (r.rWalIn || 0), 0)),        // wallet-to-wallet inflow
       freshUsd: rnd(fresh.reduce((s, r) => s + r.firstBuyUsd, 0)),
       reentrantRealized: rnd(reentrants.reduce((s, r) => s + r.realized, 0)),
       reentrantReinvest30d: rnd(reentrants.reduce((s, r) => s + r.d30, 0)) },
