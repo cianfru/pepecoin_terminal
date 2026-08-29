@@ -62,10 +62,10 @@ jobs:
       - name: Refresh prices (DeFiLlama)
         run: python3 scripts/pull-prices-defillama.py --out=prices.csv
 
-      - name: Rebuild on-chain suite (local FIFO, decimals=18)
+      - name: Rebuild on-chain suite (local FIFO, decimals=18, DAILY grid)
         run: |
           node scripts/build-onchain-local.mjs \
-            --transfers=transfers.csv --prices=prices.csv --decimals=18 \
+            --transfers=transfers.csv --prices=prices.csv --decimals=18 --daily \
             --out=public/onchain.json --urpd=public/urpd.json
 
       - name: Upload grown archive (release asset)
