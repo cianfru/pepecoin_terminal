@@ -74,6 +74,13 @@ jobs:
       - name: Build smart-money (per-wallet realized P&L + re-entrants)
         run: node scripts/build-smart-money.mjs --transfers=transfers.csv --prices=prices.csv
 
+      - name: Enrich ETH funding (Blockscout, keyless — tops up who funded each surfaced wallet)
+        continue-on-error: true
+        run: node scripts/enrich-eth-funding.mjs
+
+      - name: Re-fold ETH funding into clusters
+        run: node scripts/build-smart-money.mjs --transfers=transfers.csv --prices=prices.csv
+
       - name: Upload grown archive (release asset)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,7 +98,7 @@ jobs:
           git add public/onchain.json public/urpd.json public/whales.json public/entities.json \
                   public/cex-sankey.json public/self-moves.json public/urpd-history.json \
                   public/buyer-flow.json public/exit-flow.json public/survival.json public/smart-money.json \
-                  public/price-series.json prices.csv
+                  public/price-series.json public/eth-funding.json prices.csv
           if git diff --cached --quiet; then
             echo "no data changes"
           else

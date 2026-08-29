@@ -206,13 +206,38 @@ heavily-speculated coin.
     real daily price (`price-series.json`, cropped to the wallet's active window) drawn as a white line UNDER the
     buy(green)/sell(red) orbs, so you see each trade against where price actually was. We DO have a price feed
     (`prices.csv` → `price-series.json`); the old version just wasn't plotting it.
+  - **✅ ETH-FUNDING ENRICHMENT — BUILT 2026-08-29 (owner: "work on the ETH side… understand the relationship between
+    those wallets… if there has been exchanges of funds between them").** The token graph can't see who funded a fresh
+    wallet with ETH (a Coinbase→wallet seed). So `scripts/enrich-eth-funding.mjs` finds each surfaced wallet's FIRST
+    ETH funder via **Blockscout's Etherscan-compatible API — FREE, NO KEY, zero paid quota** (same family as the Base
+    holder counts; `BLOCKSCOUT_BASE` override). Incremental + cached: a first funder is immutable, so it only queries
+    wallets missing from `public/eth-funding.json` (steady-state = a handful/day). Node `fetch` reaches it through the
+    sandbox proxy directly (tested). Earliest inbound value tx (normal, then internal) = the funder. `scripts/eth-labels.mjs`
+    tags known CEX hot wallets (Coinbase/Binance/Kraken/OKX/…); a shared **exchange** funder NEVER links wallets
+    (millions withdraw from one hot wallet), only a shared **private EOA** funder does.
+    - **Clustering now unions on THREE edges** (`build-smart-money.mjs` reads `eth-funding.json` if present): shared
+      token seeder, direct token transfer, **AND shared private ETH funder** (2..`MAX_FUND=8`). Each cluster shows a
+      `via` badge ("shared token seeder + shared ETH funder"). **⭐ A group linked by BOTH a shared token seeder and a
+      shared ETH funder is near-certain common control.** Verified: **group 14 = 2 wallets both funded AND token-seeded
+      by the single address `0xf1cb…5954`, dumped $13.18M near the top**; group 10 = 3 wallets, shared funder `0x49d7…12fa`,
+      $25.4M. Of 167 surfaced: 161 resolved, **139 private-funded, 10 shared private funders, 22 exchange-funded**
+      (Coinbase 12 · Binance 4 · Kraken 2). Workflow: build-smart-money → enrich (continue-on-error) → build-smart-money
+      again (folds funders in); commits `eth-funding.json`. **🔲 An `ETHERSCAN_KEY` fast-path is optional** (higher rate
+      limit) but not needed — Blockscout is keyless.
+    - **✅ "THEN vs NOW" TOKEN FINGERPRINT — BUILT 2026-08-29 (owner: "if the amount bought during the first run-up is
+      similar to what's being bought today").** Per wallet: `earlyBought` (tokens received before the ATH 2024-04-11) vs
+      `rallyBought` (received since the rally start), and `thenNow` = the ratio. The cycle table + cluster headers show
+      `bought N then → M now`; an **amber ratio flags a re-buy of a similar-size bag (0.5–2×)** — the coordinated-fleet
+      fingerprint. Real reads: `0x22d5…3333` bought 197k then / 200k now (1.0×, identical); several cluster members
+      re-accumulate a ~0.5–1× fraction of their original run-up bag.
   - **⭐ FINDINGS (2026-08-29, +3.4× rally $0.069→$0.235):** 32 early→sold-top→buying-back wallets ($39M cashed near the
-    $7.43 top); 17 fresh big buyers; 15 clean related groups — e.g. **group 1 = 4 wallets all seeded by `0xe1e7…f18e`**
-    that dumped $3.94M near the top and one is buying +212k in the rally; group 10 = 2 wallets from seeder `0xf1cb…5954`
-    dumped $13.18M. **🔲 NEXT:** ETH-funding enrichment (the Coinbase-seed detector the owner really wants — needs an
-    ETH-layer source), then more SPX-parity charts (valuation composite, methods page, CEX venue flows,
-    cost-basis-by-cohort). 3D holder skyline later (whale city NOT wanted). Owner priority = analytical VALUE over
-    visual polish; no social/bot.
+    $7.43 top); 17 fresh big buyers; 21 clean related groups after ETH enrichment. The strongest: **group 14** (both ETH
+    + token from `0xf1cb…5954`, $13.18M dumped), **group 10** (3 wallets, shared funder, $25.4M), **group 1** (4 wallets,
+    bought 3,113k in the run-up → re-buying 800k now). **🔲 NEXT (owner wants MORE ETH depth, not more charts — this is
+    an INTEL site building an investment thesis):** funder-of-funder (2-hop) links; label the shared private funders that
+    are themselves CEX-withdrawal-fed; per-cluster "then vs now" size-match scoring; a dedicated "coordination map"
+    view. Then SPX-parity charts later (valuation composite, methods, CEX flows). 3D skyline later (whale city NOT
+    wanted). Owner priority = analytical VALUE over visual polish; no social/bot.
 
 **B. Valuation layer (the hero):** the **valuation composite** — a 0–1 oscillator over history, independent
 axes (valuation / trend / relative / sentiment), percentile-ranked, weights published on a Methods page
