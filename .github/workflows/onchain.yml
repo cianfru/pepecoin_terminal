@@ -107,6 +107,10 @@ jobs:
         continue-on-error: true
         run: node scripts/build-common-tokens.mjs
 
+      - name: Build under-the-radar (small tokens the cohort is quietly buying — Blockscout, keyless)
+        continue-on-error: true
+        run: node scripts/build-radar.mjs
+
       - name: Upload grown archive (release asset)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -126,7 +130,7 @@ jobs:
                   public/buyer-flow.json public/exit-flow.json public/survival.json public/smart-money.json \
                   public/price-series.json public/eth-funding.json public/contract-types.json \
                   public/contract-labels.json public/insider-watch.json public/wallet-capital.json \
-                  public/crosstoken.json public/operation.json public/common-tokens.json prices.csv
+                  public/crosstoken.json public/operation.json public/common-tokens.json public/radar.json prices.csv
           if git diff --cached --quiet; then
             echo "no data changes"
           else
