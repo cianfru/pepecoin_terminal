@@ -33,6 +33,15 @@ export const ETH_LABELS = {
   "0xe853c56864a2ebe4576a807d26fdc4a0ada51919": "Kraken",
   "0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0": "Kraken",
   "0xfa52274dd61e1643d2205169732f29114bc240b3": "Kraken",
+  // ── Kraken cold/hot + funding wallets (owner-identified 2026-08-30, after a false "ALTHEA coordination"
+  //    positive — these had been swept into the operator cohort as "whales" and the funder created FAKE
+  //    shared-funder edges). A shared exchange funder never links wallets, so labelling 0xf30ba13e here
+  //    dissolves the false cluster.
+  "0x7dafba1d69f6c01ae7567ffd7b046ca03b706f83": "Kraken",
+  "0xd2dd7b597fd2435b6db61ddf48544fd931e6869f": "Kraken",
+  "0xc2e6cc2b4942fd803ed5a6e8e3b4890503d12645": "Kraken",
+  "0x504ce9e51e508c85a161058c12e970a903d482fc": "Kraken",
+  "0xf30ba13e4b04ce5dc4d254ae5fa95477800f0eb0": "Kraken",
   // OKX
   "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": "OKX",
   "0x236f9f97e0e62388479bf9e5ba4889e46b0273c3": "OKX",

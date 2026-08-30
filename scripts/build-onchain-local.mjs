@@ -48,6 +48,21 @@ export const EXCLUDE_LABELS = {
   // ── CROSS-REFERENCED from the SPX exclude map (shared exchange hot wallets hold pepecoin too). VERIFY on Etherscan. ──
   "0x9642b23ed1e01df1092b92641051881a322f5d4e": { name: "MEXC 2", kind: "cex" },   // top-10 pepecoin holder; tagged "MEXC 2" in the SPX map
   "0x0d0707963952f2fba59dd06f2b425ace40b492fe": { name: "Gate.io 1", kind: "cex" }, // exchange-candidate detector hit; tagged Gate.io in the SPX map
+  // ── KRAKEN cold/hot + funding wallets (owner-identified 2026-08-30). A false "ALTHEA coordination" positive traced back
+  //    to these being swept into the operator cohort as "whales", and the funder 0xf30ba13e minting fake shared-funder
+  //    edges. Kraken is an exchange, not an operator — kind:"cex" drops them from the reconstruction AND (via EXCLUDE, which
+  //    the smart-money loaders read) stops them contaminating the cohort / clusters / staging numbers.
+  "0x7dafba1d69f6c01ae7567ffd7b046ca03b706f83": { name: "Kraken (cold)", kind: "cex" },
+  "0xd2dd7b597fd2435b6db61ddf48544fd931e6869f": { name: "Kraken (hot)", kind: "cex" },
+  "0xc2e6cc2b4942fd803ed5a6e8e3b4890503d12645": { name: "Kraken 3", kind: "cex" },
+  "0x504ce9e51e508c85a161058c12e970a903d482fc": { name: "Kraken 4", kind: "cex" },
+  "0xf30ba13e4b04ce5dc4d254ae5fa95477800f0eb0": { name: "Kraken (funding)", kind: "cex" },
+  // Kraken-adjacent SHUTTLE / OTC intermediary (behaviour-inferred 2026-08-30, 🔲 owner to confirm on Etherscan).
+  //   Was on the "high two-way throughput; verify" list. It shuttles 1.26M+ pepecoin BOTH directions with the Kraken
+  //   cold+hot wallets above, across 283 counterparties (~11 tx/day for 6 months) — a deposit/OTC router, not a person.
+  //   Left in the cohort it single-handedly faked a "DISTRIBUTING/ARMED" exit signal (its normal Kraken deposits read as
+  //   the operators offloading). Excluding a shared intermediary follows the same rule as a shared funder: it links no one.
+  "0xafd18a20aff41b6da320773c6aaf796477728ceb": { name: "Kraken shuttle / OTC (unverified)", kind: "cex" },
   // ── PUBLICLY-KNOWN routers / settlement contracts (canonical addresses, universal infra — NOT holders; they hold ~0 at
   //    rest and pass tokens through). Excluding them is the SPX "untagged router → supernode" hygiene fix: here they were
   //    fusing the 303-wallet super-cluster. kind:"mm" = trading infrastructure, excluded from holders, attributed to no venue.

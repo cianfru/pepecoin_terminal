@@ -269,6 +269,19 @@ heavily-speculated coin.
       all sub-$5M, several cohort wallets, bought days ago. **HONESTY: 3 wallets in a small token can be coincidence; framed as
       "signal, not proof, DYOR." NOT advice.** 🔲 NEXT: for the top radar hits, check if the SAME funder/seeder network seeded
       those buys (real coordination vs a few wallets independently in small caps).
+    - **⚠⚠ RETRACTED 2026-08-30 — THE ENTIRE RADAR LIST WAS A KRAKEN ARTIFACT (owner caught it via ALTHEA).** Owner recognised
+      ALTHEA's "operator-tied" holders as **Kraken** (main cold + hot + a Kraken funding wallet); ALTHEA is a deprecated L1 —
+      "a nothing burger." Root cause: 5 Kraken wallets (`0x7dafba1d` cold, `0xd2dd7b59` hot, `0xc2e6cc2b`, `0x504ce9e5`,
+      `0xf30ba13e` funding) were unlabelled → swept into the cohort as "whales", and a Kraken-adjacent OTC **shuttle**
+      `0xafd18a20` (moves 1.26M+ pepecoin both ways with the Kraken cold/hot wallets across 283 counterparties). An exchange
+      cold wallet holds hundreds of small tokens, so "≥3 cohort wallets hold token X" fired on the exchange's diversified bag —
+      ALTHEA/XION/MULTI/THQ/SYND… were ALL false. **FIX:** labelled the 5 Kraken wallets (`eth-labels.mjs` + `EXCLUDE_LABELS`
+      kind:cex) and the shuttle (kind:cex, 🔲 owner to confirm), added a **whale-scale guard** in `build-smart-money.mjs` (reads
+      `wallet-capital.json`; any $3M+ blue-chip footprint auto-drops from cohort/clusters — dropping errs toward UNDER-counting
+      coordination, the safe direction), and excluded ALTHEA in `build-radar.mjs`. **Re-ran on the clean 70-wallet cohort →
+      radar is now EMPTY** ("the cohort's shared bags are all large-cap / known"). **LESSON (the big one): before reading ANY
+      "the crew also holds X" signal, confirm the holders aren't an exchange. An unlabelled CEX cold wallet fabricates
+      coordination on both the funder graph AND the shared-holdings graph. Exchange-scale wallets must be excluded FIRST.**
   - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
     repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
     answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**
@@ -293,6 +306,14 @@ heavily-speculated coin.
       pepecoin (the "strange ETH-loaded wallet" pattern the owner flagged). **🔲 NEXT (owner interested): trace the ETH origin
       of the loaded wallets 1–2 hops (is it one exchange withdrawal / one funder seeding the whole web?), and keep the exit
       watch running — the status flips the day they touch a CEX.**
+    - **⚠ CORRECTED 2026-08-30 (Kraken cleanup, see the radar retraction above).** The 2026-08-29 verdict's SHAPE holds but two
+      numbers were Kraken-contaminated: (1) the flagged source `0xafd18a20` is a Kraken OTC **shuttle**, now excluded — it briefly
+      flipped the status to a FALSE "DISTRIBUTING/ARMED" because its routine Kraken deposits ($102k to Kraken cold+hot) read as the
+      operators offloading. (2) With Kraken + shuttle out of the **70**-wallet cohort: status is back to **STAGING**, **to-CEX $0**,
+      tripwire **NOT armed**; net staged ≈ **$780k** (was quoted ~$928k), operation re-stage ≈ **$660k**. The distribution total
+      (**$2.16M** sold into the 2024 top) and the serial operator `0x2f04c585` (GME −93% / BOOE −90% same playbook) are UNCHANGED —
+      those never involved Kraken. Genuine top staging feeder stays the private `0x7d544a853d` ($353k). **The verdict is still: NOT
+      re-accumulation, NOT distribution — a staged bag, intent unproven, resolvable only forward.**
   - **✅ ETH-FUNDING ENRICHMENT — BUILT 2026-08-29 (owner: "work on the ETH side… understand the relationship between
     those wallets… if there has been exchanges of funds between them").** The token graph can't see who funded a fresh
     wallet with ETH (a Coinbase→wallet seed). So `scripts/enrich-eth-funding.mjs` finds each surfaced wallet's FIRST
