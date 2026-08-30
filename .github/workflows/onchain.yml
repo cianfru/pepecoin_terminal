@@ -111,6 +111,10 @@ jobs:
         continue-on-error: true
         run: node scripts/build-radar.mjs
 
+      - name: Build multisig hub map (the Safe + its direct recipients, Zerion cards — Blockscout, keyless)
+        continue-on-error: true
+        run: node scripts/build-hub.mjs --transfers=transfers.csv --prices=prices.csv
+
       - name: Upload grown archive (release asset)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -130,7 +134,8 @@ jobs:
                   public/buyer-flow.json public/exit-flow.json public/survival.json public/smart-money.json \
                   public/price-series.json public/eth-funding.json public/contract-types.json \
                   public/contract-labels.json public/insider-watch.json public/wallet-capital.json \
-                  public/crosstoken.json public/operation.json public/common-tokens.json public/radar.json prices.csv
+                  public/crosstoken.json public/operation.json public/common-tokens.json public/radar.json \
+                  public/hub.json prices.csv
           if git diff --cached --quiet; then
             echo "no data changes"
           else

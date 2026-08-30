@@ -31,7 +31,7 @@ const OTHER_CAP = 25000; // an obscure token showing more than this in a random 
 
 async function j(url) { try { const r = await fetch(url, { headers: UA }); if (!r.ok) return null; return await r.json(); } catch { return null; } }
 
-async function walletCapital(a) {
+export async function walletCapital(a) {
   const meta = await j(`${BASE}/api/v2/addresses/${a}`);
   const eth = meta ? Number(meta.coin_balance || 0) / 1e18 : 0;
   const ethRate = meta ? Number(meta.exchange_rate || 0) : 0;
