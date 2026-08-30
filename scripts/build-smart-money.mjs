@@ -70,7 +70,18 @@ async function main() {
   const nowTs = tx[tx.length - 1].ts;
   const c7 = nowTs - 7 * DAY, c30 = nowTs - 30 * DAY, cFresh = nowTs - FRESH_DAYS * DAY;
   const ZERO = "0x0000000000000000000000000000000000000000";
-  const ex = (a) => EXCLUDE.has(a) || !a || a === ZERO;
+  // ── WHALE / EXCHANGE-SCALE GUARD (owner-driven, 2026-08-30). Belt-and-suspenders after the Kraken false
+  //    positive: even if an exchange/infra wallet is NOT hard-coded in EXCLUDE_LABELS, a $3M+ blue-chip
+  //    footprint (build-wallet-capital's `whale` flag) means it is an exchange/custodian, not a retail
+  //    operator — auto-drop it from the whole reconstruction. Dropping errs toward UNDER-counting
+  //    coordination (the safe direction: over-merging is the dishonesty this project guards against).
+  //    Uses the PRIOR run's committed capital data; absent on a cold first run (fine — EXCLUDE still holds).
+  const whales = new Set();
+  try {
+    const wc = JSON.parse(await readFile("public/wallet-capital.json", "utf8")).wallets || {};
+    for (const [a, v] of Object.entries(wc)) if (v?.whale) whales.add(a.toLowerCase());
+  } catch { /* no prior capital file — EXCLUDE_LABELS is the floor */ }
+  const ex = (a) => EXCLUDE.has(a) || whales.has(a) || !a || a === ZERO;
 
   // ── source classification: separate a REAL MARKET BUY (from the DEX pool/routers) from a CONTRACT
   //    WITHDRAWAL (bcred & other vaults — receiving your own deposited tokens back, NOT a buy) and a plain

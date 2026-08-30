@@ -18,6 +18,8 @@ const EXCL = new Set([
   "0xc56c7a0eaa804f854b536a5f3d5f49d2ec4b12b8", // GME
   "0x289ff00235d2b98b0145ff5d4435d3e92f9540a6", // BOOE
   "0x44971abf0251958492fee97da3e5c5ada88b9185", // BASEDAI (owner: part of the pepecoin narrative, not a new signal)
+  "0xf9e595bc0af20cfa1561dfe085e3de9fcf9fbfa2", // ALTHEA (owner-confirmed nothing-burger 2026-08-30: a deprecated L1; only
+  //   surfaced because Kraken wallets — now excluded from the cohort — held it. Diversified exchange bags are not a signal.)
   "0x6982508145454ce325ddbe47a25d4ec3d2311933", // PEPE (the 2023 meme — well known)
   "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
   "0xdac17f958d2ee523a2206206994597c13d831ec7", "0x6b175474e89094c44da98b954eedeac495271d0f",
