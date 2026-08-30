@@ -239,6 +239,15 @@ heavily-speculated coin.
       of the pepecoin cluster that dumped $25M near pepecoin's top. Same buy-early→sell-top signature, three tokens. **This
       is a repeatable pump/dump crew, not a one-off. 🔲 NEXT: run the same on more of their tokens; watch the pepecoin exit
       tripwire (they took GME/BOOE to −90%+, so the pepecoin bag is staged for the same).** (Reported plainly; NOT advice.)
+    - **✅ "THE OPERATION" — one-chart overlay (owner: "put the whole operation on one chart — the buying, the selling, the
+      new buying now, with wallet tags on each orb").** `scripts/build-operation.mjs` → `public/operation.json`: the cohort's
+      real DEX activity across the FULL price history in three acts — **accumulate** (pool buys pre-ATH), **distribute** (pool
+      sells at price ≥ $1, into/around the top), **re-stage** (rally-window inflows: pool buys + vault/wallet consolidation).
+      Events ≥ $1.5k, capped 140/phase, top-6/phase tagged with the wallet. Panel **`OperationPanel`** (🎯, window `op`) — a
+      ComposedChart: white price line + green/red/amber orbs sized by $, ATH + rally reference lines, wallet-tag labels,
+      hover card, click → wallet drill-down (Zerion/Etherscan). **⭐ THE NUMBERS: accumulated ~$508k pre-top → distributed
+      ~$2.16M into the top (4.26× their cost) → re-staging ~$731k now.** ⚠ OWNER CORRECTED my "only $189k of markup buying is
+      small" framing — on a thin float $189k is plenty to spike price + bait retail; do NOT downplay operator markup capital again.
   - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
     repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
     answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**

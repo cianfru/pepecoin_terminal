@@ -1,6 +1,6 @@
 import {
   ResponsiveContainer, ComposedChart, AreaChart, BarChart, LineChart, ScatterChart, Area, Line, Bar, Cell, Scatter, ZAxis,
-  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, LabelList,
 } from "recharts";
 import {
   useOnchain, useJson, last, fmtUsd, fmtPct, fmtX, fmtNum, fmtTok, shortAddr, shortDate,
@@ -943,6 +943,59 @@ export function CohortMapPanel() {
   );
 }
 
+const OPPH = { accumulate: { c: C.green, t: "accumulate" }, distribute: { c: C.warn, t: "sell the top" }, restage: { c: C.amber, t: "re-stage now" } };
+export function OperationPanel() {
+  const feed = useJson("operation.json");
+  const pf = useJson("price-series.json");
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!feed.data) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
+  const d = feed.data;
+  const price = (pf.data?.series || []).map(([dt, p]) => ({ t: Date.parse(dt), price: p }));
+  const byPhase = (ph) => (d.events || []).filter((e) => e.phase === ph).map((e) => ({ ...e }));
+  const tf = (t) => new Date(t).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
+  const opTip = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    const p = payload.find((x) => x.payload && x.payload.w)?.payload; if (!p) return null;
+    const m = OPPH[p.phase] || {};
+    return <div className="tip" style={{ borderColor: m.c }}>
+      <div className="td" style={{ color: m.c }}>{m.t}{p.src ? " · " + p.src : ""}</div>
+      <div className="tr"><span>wallet</span><span>{shortAddr(p.w)}</span></div>
+      <div className="tr"><span>{p.d}</span><span>{fmtUsd(p.price)}</span></div>
+      <div className="tr"><span>amount</span><span>{fmtTok(p.qty)} · {money(p.usd)}</span></div>
+      <div className="tr" style={{ color: C.dim }}><span /><span>click → open · Zerion</span></div>
+    </div>;
+  };
+  const lab = (props) => { const { x, y, value } = props; if (!value) return null; return <text x={x} y={y - 9} fill="#cfe" fontSize={9} textAnchor="middle" fontFamily="var(--mono)">{value}</text>; };
+  return (
+    <div>
+      <p className="q">The whole operation on one timeline — the operator cohort's real DEX activity over pepecoin's full price history. <b style={{ color: C.green }}>Green = they bought</b> near launch; <b style={{ color: C.warn }}>red = they sold into the top</b>; <b style={{ color: C.amber }}>amber = what they're re-staging now</b>. Each orb is sized by $ and tagged with the wallet — hover for who, click to open it (Etherscan / Zerion).</p>
+      <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
+        <div className="ov-kpi"><div className="k">① accumulated (pre-top)</div><div className="v" style={{ color: C.green }}>{money(d.totals.accumulateUsd)}</div><div className="n">bought near launch</div></div>
+        <div className="ov-kpi"><div className="k">② distributed (the top)</div><div className="v warn">{money(d.totals.distributeUsd)}</div><div className="n">{fmtX(d.totals.distributeUsd / (d.totals.accumulateUsd || 1))} what they put in</div></div>
+        <div className="ov-kpi"><div className="k">③ re-staging (now)</div><div className="v" style={{ color: C.amber }}>{money(d.totals.restageUsd)}</div><div className="n">since {d.rally}</div></div>
+      </div>
+      <div className="legend"><span><i className="dot" style={{ background: C.tx }} />price</span><span><i className="dot" style={{ background: C.green }} />accumulate</span><span><i className="dot" style={{ background: C.warn }} />sell the top</span><span><i className="dot" style={{ background: C.amber }} />re-stage now</span></div>
+      <div style={{ width: "100%", height: 380 }}><ResponsiveContainer>
+        <ComposedChart margin={{ top: 14, right: 14, bottom: 4, left: 6 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis type="number" dataKey="t" domain={["dataMin", "dataMax"]} scale="time" tickFormatter={tf} stroke={AXIS} minTickGap={44} />
+          <YAxis type="number" dataKey="price" scale="log" domain={["auto", "auto"]} tickFormatter={fmtUsd} stroke={AXIS} width={64} allowDataOverflow />
+          <ZAxis type="number" dataKey="usd" range={[24, 620]} />
+          <Tooltip content={opTip} cursor={{ strokeDasharray: "3 3" }} />
+          <ReferenceLine x={Date.parse(d.ath)} stroke={C.warn} strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "top", fill: C.warn, fontSize: 10, position: "insideTopLeft" }} />
+          <ReferenceLine x={Date.parse(d.rally)} stroke={C.amber} strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "rally", fill: C.amber, fontSize: 10, position: "insideTopRight" }} />
+          <Line {...noAnim} type="monotone" data={price} dataKey="price" name="price" stroke={C.tx} strokeWidth={1.3} dot={false} strokeOpacity={0.6} />
+          {["accumulate", "distribute", "restage"].map((ph) => (
+            <Scatter key={ph} {...noAnim} data={byPhase(ph)} dataKey="price" fill={OPPH[ph].c} fillOpacity={0.62} stroke={OPPH[ph].c} onClick={(e) => e && e.w && openWin("wallet:" + e.w)} style={{ cursor: "pointer" }}>
+              <LabelList dataKey="lab" content={lab} />
+            </Scatter>))}
+        </ComposedChart>
+      </ResponsiveContainer></div>
+      <p className="foot">Read left to right: a green field of buys near launch, a red field of sells in the {d.ath} top zone ({fmtX(d.totals.distributeUsd / (d.totals.accumulateUsd || 1))} what they accumulated — the profit), then the amber re-stage after the {d.rally} rally line. Same wallets, one cycle. Every orb is clickable to its full history; the tag is the wallet (open it for the Zerion card). Reconstructed from public transfers — reproducible.</p>
+    </div>
+  );
+}
+
 export function WalletDetail({ addr }) {
   const feed = useJson("smart-money.json");
   const pf = useJson("price-series.json");
@@ -1005,7 +1058,7 @@ export function WalletDetail({ addr }) {
   );
 }
 
-const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel, map: CohortMapPanel };
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel, map: CohortMapPanel, op: OperationPanel };
 export function winContent(id) {
   if (id && id.startsWith("wallet:")) return <WalletDetail addr={id.slice(7)} />;
   const P = PANELS[id];
