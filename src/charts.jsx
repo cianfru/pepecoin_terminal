@@ -939,7 +939,26 @@ export function CohortMapPanel() {
         </div>}
       </div>
       <p className="foot">Capital + token holdings are read live from the chain (ETH + ERC-20 balances). A tight knot of bubbles joined by <span style={{ color: EDGEC.fund }}>funder</span> and <span style={{ color: EDGEC.seed }}>seeder</span> lines is one operator's fleet; a <span style={{ color: EDGEC.route }}>buy→route</span> line is a wallet that bought on the market and fed the staged bag. Rings show who's <i>also</i> in GME / BOOE — the same crew's other plays. Not proof of one owner; it's the network, drawn so you can trace it.</p>
+      <SharedBags cohort={ov?.total} />
     </div>
+  );
+}
+function SharedBags({ cohort }) {
+  const feed = useJson("common-tokens.json");
+  const c = feed.data?.common || [];
+  if (!c.length) return null;
+  const dex = (a) => `https://dexscreener.com/ethereum/${a}`;
+  return (
+    <>
+      <div className="buy-h" style={{ marginTop: 14, color: C.cyan }}>◆ what else they hold in common — shared bags</div>
+      <div className="tscroll"><table className="dtable"><thead><tr><th>token</th><th className="r">cohort wallets</th><th className="r">held (capped)</th><th></th></tr></thead>
+        <tbody>{c.slice(0, 16).map((t) => (
+          <tr key={t.addr}><td><b style={{ color: t.n >= 12 ? C.amber : C.tx }}>{t.sym}</b> <span className="dim" style={{ fontSize: 10.5 }}>{t.name?.slice(0, 22)}</span></td>
+            <td className="r"><b style={{ color: t.n >= 12 ? C.amber : C.tx }}>{t.n}</b>{cohort ? <span className="dim"> / {cohort}</span> : ""}</td>
+            <td className="r">{money(t.usd)}</td>
+            <td><a href={dex(t.addr)} target="_blank" rel="noreferrer" style={{ color: C.dim, fontSize: 10 }}>chart ↗</a> <a href={`https://etherscan.io/token/${t.addr}`} target="_blank" rel="noreferrer" style={{ color: C.dim, fontSize: 10 }}>etherscan ↗</a></td></tr>))}</tbody></table></div>
+      <p className="foot">Beyond pepecoin, GME and BOOE — tokens held by multiple cohort wallets (priced positions, stables/majors excluded, $-capped so scam prices can't inflate). One stands out: <b style={{ color: C.amber }}>{c[0].sym}</b>, held by <b>{c[0].n}</b> of the cohort — spot-checked as real Uniswap buys (not airdrop dust) shuffled within the same operator network, i.e. their other coordinated position. The long tail (held by only a handful) is mostly a few diversified wallets, not a crew-wide play — judge by the wallet count.</p>
+    </>
   );
 }
 
