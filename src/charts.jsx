@@ -944,20 +944,33 @@ export function CohortMapPanel() {
   );
 }
 function SharedBags({ cohort }) {
-  const feed = useJson("common-tokens.json");
-  const c = feed.data?.common || [];
-  if (!c.length) return null;
+  const rf = useJson("radar.json");
+  const cf = useJson("common-tokens.json");
+  const radar = rf.data?.radar || [];
+  const common = cf.data?.common || [];
   const dex = (a) => `https://dexscreener.com/ethereum/${a}`;
+  const mc = (v) => v == null ? "?" : v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : "$" + Math.round(v / 1e3) + "k";
   return (
     <>
-      <div className="buy-h" style={{ marginTop: 14, color: C.cyan }}>◆ what else they hold in common — shared bags</div>
-      <div className="tscroll"><table className="dtable"><thead><tr><th>token</th><th className="r">cohort wallets</th><th className="r">held (capped)</th><th></th></tr></thead>
-        <tbody>{c.slice(0, 16).map((t) => (
-          <tr key={t.addr}><td><b style={{ color: t.n >= 12 ? C.amber : C.tx }}>{t.sym}</b> <span className="dim" style={{ fontSize: 10.5 }}>{t.name?.slice(0, 22)}</span></td>
-            <td className="r"><b style={{ color: t.n >= 12 ? C.amber : C.tx }}>{t.n}</b>{cohort ? <span className="dim"> / {cohort}</span> : ""}</td>
-            <td className="r">{money(t.usd)}</td>
-            <td><a href={dex(t.addr)} target="_blank" rel="noreferrer" style={{ color: C.dim, fontSize: 10 }}>chart ↗</a> <a href={`https://etherscan.io/token/${t.addr}`} target="_blank" rel="noreferrer" style={{ color: C.dim, fontSize: 10 }}>etherscan ↗</a></td></tr>))}</tbody></table></div>
-      <p className="foot">Beyond pepecoin, GME and BOOE — tokens held by multiple cohort wallets (priced positions, stables/majors excluded, $-capped so scam prices can't inflate). One stands out: <b style={{ color: C.amber }}>{c[0].sym}</b>, held by <b>{c[0].n}</b> of the cohort — spot-checked as real Uniswap buys (not airdrop dust) shuffled within the same operator network, i.e. their other coordinated position. The long tail (held by only a handful) is mostly a few diversified wallets, not a crew-wide play — judge by the wallet count.</p>
+      <div className="buy-h" style={{ marginTop: 14, color: C.amber }}>◆ under the radar — small tokens they're quietly buying</div>
+      {radar.length ? <>
+        <div className="tscroll"><table className="dtable"><thead><tr><th>token</th><th className="r">cohort</th><th className="r">mcap</th><th className="r">holders</th><th className="r">last buy</th><th></th></tr></thead>
+          <tbody>{radar.slice(0, 16).map((t) => (
+            <tr key={t.addr}><td><b style={{ color: t.recent ? C.amber : C.tx }}>{t.sym}</b> <span className="dim" style={{ fontSize: 10.5 }}>{t.name?.slice(0, 20)}</span></td>
+              <td className="r"><b>{t.n}</b>{cohort ? <span className="dim"> / {cohort}</span> : ""}</td>
+              <td className="r">{mc(t.mcap)}</td>
+              <td className="r dim">{t.totalHolders ? fmtNum(t.totalHolders) : "?"}</td>
+              <td className={"r " + (t.recent ? "pos" : "dim")}>{t.lastBuy || "—"}{t.recent ? " ⟵" : ""}</td>
+              <td><a href={dex(t.addr)} target="_blank" rel="noreferrer" style={{ color: C.dim, fontSize: 10 }}>chart ↗</a></td></tr>))}</tbody></table></div>
+        <p className="foot">Small, low-visibility tokens (≤{fmtNum(rf.data.thresholds.maxHolders)} holders, ≤{mc(rf.data.thresholds.maxMcap)} mcap) held by <b>≥{rf.data.thresholds.minCohort}</b> of the {rf.data.cohort} operator wallets — the opposite of their known plays. <b style={{ color: C.amber }}>Amber = a recent buy</b> (they're accumulating it now). A tiny token with several of this crew's wallets holding real, recent positions is a setup before it's visible — open the chart and check who's buying via the wallet drill-downs. Signal, not proof; DYOR.</p>
+      </> : <p className="foot" style={{ marginTop: 4 }}>{rf.data ? "No small/obscure token is held by 3+ of the cohort right now — their shared bags are all large-cap / known names." : "scanning holdings…"}</p>}
+      {common.length > 0 && <details style={{ marginTop: 6 }}><summary style={{ cursor: "pointer", color: C.dim, fontSize: 11, fontFamily: "var(--mono)" }}>▸ broader shared bags (incl. large caps)</summary>
+        <div className="tscroll" style={{ marginTop: 6 }}><table className="dtable"><thead><tr><th>token</th><th className="r">cohort wallets</th><th className="r">held</th><th></th></tr></thead>
+          <tbody>{common.slice(0, 14).map((t) => (
+            <tr key={t.addr}><td>{t.sym} <span className="dim" style={{ fontSize: 10.5 }}>{t.name?.slice(0, 20)}</span></td>
+              <td className="r">{t.n}{cohort ? <span className="dim"> / {cohort}</span> : ""}</td><td className="r">{money(t.usd)}</td>
+              <td><a href={dex(t.addr)} target="_blank" rel="noreferrer" style={{ color: C.dim, fontSize: 10 }}>chart ↗</a></td></tr>))}</tbody></table></div>
+      </details>}
     </>
   );
 }

@@ -256,8 +256,19 @@ heavily-speculated coin.
       Universal Router swaps `0x3593564c`, i.e. real buys, and is shuffled from `0x7d544a85` — the same wallet that was the #1
       source feeding the pepecoin cohort). So **BASEDAI is the crew's other coordinated position.** The long tail (PEPE/MOG/
       COMP/APE/ONDO… at 4–6 wallets) is a few diversified traders, NOT a crew-wide play — judge by wallet count, and don't
-      overclaim the tail. 🔲 NEXT: run the operation/cross-token reconstruction on BASEDAI too (is it pre-top-accumulate or
-      already distributing?).
+      overclaim the tail. (Owner: BASEDAI is part of the pepecoin narrative — expected overlap, NOT a new signal.)
+    - **✅ "UNDER THE RADAR" — `build-radar.mjs` (owner: "more interested in smaller assets still under the radar").** The
+      refined version of shared-bags: keeps ONLY small/low-visibility tokens (Blockscout token stats: ≤20k total holders AND
+      ≤$15M mcap) held by ≥3 cohort wallets, EXCLUDING known/narrative (pepe/GME/BOOE/BASEDAI/majors/stables), and checks
+      **recency** (samples holders' latest inbound — flags a buy in the last 120d). Ranked by recent-first then a score that
+      rewards cohort presence ÷ log(total holders) so a TINY token with several of the crew beats a mid-cap. Rendered as the
+      lead "under the radar" table on the Coordination Map (`SharedBags` reads `radar.json`; broader large-cap bags collapse
+      into a `<details>`). **⭐ THE FINDING (2026-08-30): the cohort is actively rotating into small caps RIGHT NOW (last buys
+      Aug 26–28).** Standout **ALTHEA** ($0.53M mcap, only **108 total holders**, 3 cohort wallets) — the crew is ~3% of the
+      entire holder base; plus BOS ($0.44M), RBC ($0.73M), SLAY ($0.21M), GAIA ($1M), XL1, SYND, FHE, ES, ZRC, RAILS —
+      all sub-$5M, several cohort wallets, bought days ago. **HONESTY: 3 wallets in a small token can be coincidence; framed as
+      "signal, not proof, DYOR." NOT advice.** 🔲 NEXT: for the top radar hits, check if the SAME funder/seeder network seeded
+      those buys (real coordination vs a few wallets independently in small caps).
   - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
     repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
     answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**
