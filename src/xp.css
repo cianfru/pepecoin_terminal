@@ -215,4 +215,5 @@ body {
 .gcard .gc-cap { font-size: 18px; font-weight: 600; color: var(--ink); }
 .gcard .gc-cap .gc-sub { font-size: 10px; font-weight: 400; color: #6f9a80; }
 .gcard .gc-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11.5px; color: #bfe6ce; margin-top: 3px; }
+.gcard .gc-x { font-size: 10.5px; margin-top: 5px; padding-top: 5px; border-top: 1px solid #17251b; }
 .gcard .gc-n { color: #6f9a80; font-size: 10px; margin-top: 7px; line-height: 1.4; }
