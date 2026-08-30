@@ -248,6 +248,16 @@ heavily-speculated coin.
       hover card, click → wallet drill-down (Zerion/Etherscan). **⭐ THE NUMBERS: accumulated ~$508k pre-top → distributed
       ~$2.16M into the top (4.26× their cost) → re-staging ~$731k now.** ⚠ OWNER CORRECTED my "only $189k of markup buying is
       small" framing — on a thin float $189k is plenty to spike price + bait retail; do NOT downplay operator markup capital again.
+    - **✅ COMMON HOLDINGS / SHARED BAGS — `build-common-tokens.mjs` (owner: "are they buying anything else in common?").**
+      Aggregates every cohort wallet's full ERC-20 holdings (Blockscout) → ranks tokens by how many cohort wallets hold a
+      >$150 priced position; excludes pepe/GME/BOOE + majors/stables; caps scam prices at $25k. Rendered as a "shared bags"
+      table on the Coordination Map (`SharedBags`, holder-count + capped $ + Dexscreener/Etherscan links). **⭐ THE STANDOUT:
+      BASEDAI (`0x44971abf…`) held by 28 of 76 (37%)** — 5× the next token; spot-checked (their BASEDAI came via Uniswap
+      Universal Router swaps `0x3593564c`, i.e. real buys, and is shuffled from `0x7d544a85` — the same wallet that was the #1
+      source feeding the pepecoin cohort). So **BASEDAI is the crew's other coordinated position.** The long tail (PEPE/MOG/
+      COMP/APE/ONDO… at 4–6 wallets) is a few diversified traders, NOT a crew-wide play — judge by wallet count, and don't
+      overclaim the tail. 🔲 NEXT: run the operation/cross-token reconstruction on BASEDAI too (is it pre-top-accumulate or
+      already distributing?).
   - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
     repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
     answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**
