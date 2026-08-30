@@ -874,7 +874,11 @@ function buildGraph(sm, cap) {
 export function CohortMapPanel() {
   const feed = useJson("smart-money.json");
   const capFeed = useJson("wallet-capital.json");
+  const xFeed = useJson("crosstoken.json");
   const g = useMemo(() => (feed.data ? buildGraph(feed.data, capFeed.data) : null), [feed.data, capFeed.data]);
+  const xt = xFeed.data;
+  const xrole = (a) => xt?.wallets?.[a];
+  const XR = { "sold-top": { t: "bought early → sold the top", c: C.warn }, holding: { t: "holding", c: C.cyan }, traded: { t: "traded", c: C.dim } };
   const [hover, setHover] = useState(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const wrap = useRef(null);
@@ -882,16 +886,19 @@ export function CohortMapPanel() {
   if (!g) return <div className="cstate">loading…</div>;
   const ov = capFeed.data?.overlap;
   const fill = (n) => n.kind === "insider" ? C.warn : n.kind === "primed" ? C.amber : n.kind === "member" ? C.cyan : "#39434f";
-  const ring = (n) => n.holds?.gme && n.holds?.booe ? "#fbbf24" : n.holds?.gme ? C.lime : n.holds?.booe ? "#a78bfa" : null;
+  const ring = (n) => { const x = xrole(n.id); const gme = n.holds?.gme || x?.gme, booe = n.holds?.booe || x?.booe; return gme && booe ? "#fbbf24" : gme ? C.lime : booe ? "#a78bfa" : null; };
   const onMove = (e) => { const b = wrap.current?.getBoundingClientRect(); if (b) setPos({ x: e.clientX - b.left, y: e.clientY - b.top }); };
   return (
     <div>
       <p className="q">The operator cohort as a map. Each <b>bubble is a wallet</b>, sized by the <b>capital it controls</b>; <b>lines are the links</b> that tie them — a shared ETH funder, a shared token seeder, a direct transfer, or a buy-then-route feed. Bubbles ringed <span style={{ color: C.lime }}>green</span> also hold <b>GME</b>, <span style={{ color: "#a78bfa" }}>purple</span> hold <b>BOOE</b>. Hover for the wallet's holdings; click to open it.</p>
       {ov && <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
         <div className="ov-kpi"><div className="k">cohort capital</div><div className="v">{money(capFeed.data.totalCapUsd)}</div><div className="n">across {ov.total} wallets</div></div>
-        <div className="ov-kpi"><div className="k">also hold GME</div><div className="v" style={{ color: C.lime }}>{ov.gme}</div><div className="n">of {ov.total} · overlap</div></div>
-        <div className="ov-kpi"><div className="k">also hold BOOE</div><div className="v" style={{ color: "#a78bfa" }}>{ov.booe}</div><div className="n">of {ov.total} · overlap</div></div>
+        <div className="ov-kpi"><div className="k">also traded GME</div><div className="v" style={{ color: C.lime }}>{xt?.summary?.gme?.traded ?? ov.gme}</div><div className="n">{xt?.summary?.gme ? `${xt.summary.gme.soldTop} bought-early→sold-top` : "hold now"}</div></div>
+        <div className="ov-kpi"><div className="k">also traded BOOE</div><div className="v" style={{ color: "#a78bfa" }}>{xt?.summary?.booe?.traded ?? ov.booe}</div><div className="n">{xt?.summary?.booe ? `${xt.summary.booe.soldTop} sold-top` : "hold now"}</div></div>
         <div className="ov-kpi"><div className="k">links drawn</div><div className="v">{fmtNum(g.edges.length)}</div><div className="n">funder / seeder / xfer / route</div></div>
+      </div>}
+      {xt?.summary?.gme && <div className="ov-lead" style={{ margin: "0 2px 12px" }}>
+        <b>Same playbook, other tokens.</b> Of this cohort, <b style={{ color: C.lime }}>{xt.summary.gme.traded}</b> also traded <b>GME</b> (which topped {xt.tokens.gme.ath}, now −{xt.tokens.gme.downFromAth}%) and <b style={{ color: C.warn }}>{xt.summary.gme.soldTop} bought it early and sold into that top</b> (~{money(xt.summary.gme.soldTopUsd)}){xt.summary.booe?.traded ? <>; <b style={{ color: "#a78bfa" }}>{xt.summary.booe.traded}</b> traded BOOE ({xt.summary.booe.soldTop} sold-top)</> : ""}. The same wallets, running the same buy-early → sell-top cycle across tokens — hover a ringed bubble to see its role.
       </div>}
       <div className="glegend">
         <span><i className="gd" style={{ background: C.warn }} />insider</span>
@@ -925,6 +932,8 @@ export function CohortMapPanel() {
                 {hover.holds?.pepe && <div className="gc-row"><span>PEPECOIN</span><span>{money(hover.holds.pepe.usd)}</span></div>}
                 {hover.holds?.gme && <div className="gc-row" style={{ color: C.lime }}><span>GME</span><span>{money(hover.holds.gme.usd)}</span></div>}
                 {hover.holds?.booe && <div className="gc-row" style={{ color: "#a78bfa" }}><span>BOOE</span><span>{money(hover.holds.booe.usd)}</span></div>}
+                {xrole(hover.id)?.gme && <div className="gc-x" style={{ color: (XR[xrole(hover.id).gme.role] || {}).c }}>GME: {(XR[xrole(hover.id).gme.role] || {}).t}{xrole(hover.id).gme.soldTopUsd > 0 ? ` · sold-top ${money(xrole(hover.id).gme.soldTopUsd)}` : ""}</div>}
+                {xrole(hover.id)?.booe && <div className="gc-x" style={{ color: (XR[xrole(hover.id).booe.role] || {}).c }}>BOOE: {(XR[xrole(hover.id).booe.role] || {}).t}{xrole(hover.id).booe.soldTopUsd > 0 ? ` · sold-top ${money(xrole(hover.id).booe.soldTopUsd)}` : ""}</div>}
                 {hover.whale && <div className="gc-n" style={{ color: C.amber }}>⚑ large blue-chip holdings — likely a whale / infra wallet, capital capped</div>}
                 <div className="gc-n">click to open history · then Etherscan / Zerion</div></>}
         </div>}

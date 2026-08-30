@@ -227,8 +227,18 @@ heavily-speculated coin.
       pepe/gme/booe) counted full, wallets >$3M flagged `whale` (likely infra/OTC swept in by clustering) and the headline
       total winsorised at $2M/wallet. **⭐ OVERLAP FINDING: 11 of 76 cohort wallets also hold GME, 2 hold BOOE** — and
       `0xcf2c0423…` (the one insider actively buying pepecoin, ~$30k) ALSO holds **$29k GME**. Confirms the owner's intel that
-      this crew runs the same playbook across GME/BOOE. **🔲 NEXT: pull GME/BOOE TRANSFER history to see if the SAME wallets
-      traded those pumps the same way (buy-early → sell-top → re-stage), and add them to the map as a multi-token overlay.**
+      this crew runs the same playbook across GME/BOOE.
+    - **✅✅ CROSS-TOKEN PLAYBOOK CONFIRMED — `build-crosstoken.mjs` (Blockscout transfers + DeFiLlama prices, keyless).**
+      For each cohort wallet, reconstructs its GME + BOOE history vs each token's OWN top (targeted per-wallet
+      `token-transfers` — no full-token scan) and classifies buy-early→sold-top / holding / traded. Emits
+      `public/crosstoken.json`; surfaced on the Coordination Map (KPIs + lead line + hover role + rings extended to
+      exited sold-top wallets). **⭐⭐ THE FINDING (the strongest evidence yet): the SAME wallets ran the SAME cycle on
+      other tokens.** GME (Ethereum, topped 2025-05, now **−93%**): 16/76 cohort wallets traded it, **4 bought early and
+      sold the top (~$964k)**. BOOE (Book of Ethereum, topped 2025-08, now **−90%**): 10/76 traded, **3 sold-top (~$209k)**.
+      **`0x2f04c585e9` is the serial operator** — dumped **$952k into GME's top**, **$199k into BOOE's top**, and is a member
+      of the pepecoin cluster that dumped $25M near pepecoin's top. Same buy-early→sell-top signature, three tokens. **This
+      is a repeatable pump/dump crew, not a one-off. 🔲 NEXT: run the same on more of their tokens; watch the pepecoin exit
+      tripwire (they took GME/BOOE to −90%+, so the pepecoin bag is staged for the same).** (Reported plainly; NOT advice.)
   - **✅✅ INSIDER EXIT WATCH + REPOSITIONING VERDICT — BUILT 2026-08-29 (owner: "enough evidence this is NOT a
     repositioning? … trying to figure out if tipping my toes. Last time it ran 5M→1B MC").** The decisive question wasn't
     answerable from the buy-side alone, so we traced where the operator cohort's bag GOES. **`scripts/build-insider-watch.mjs`**
