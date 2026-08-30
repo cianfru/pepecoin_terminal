@@ -943,6 +943,137 @@ export function CohortMapPanel() {
     </div>
   );
 }
+// ---- Multisig hub map: the Gnosis Safe + its direct recipients, Zerion-style card on hover ----
+const HROLE = {
+  hub: { c: C.warn, t: "Gnosis Safe multisig", d: "the operator treasury — top top-seller" },
+  feeder: { c: C.amber, t: "primary recipient", d: "#1 wallet feeding the staged bag" },
+  recipient: { c: C.cyan, t: "received from the Safe", d: "the Safe routed pepecoin here" },
+  sender: { c: "#5fbf87", t: "sent into the Safe", d: "funded the Safe" },
+  onward: { c: C.cyan, t: "onward from the feeder", d: "where the feeder sends next" },
+  infeeder: { c: "#5fbf87", t: "sent into the feeder", d: "funded the feeder" },
+};
+function buildHubGraph(h) {
+  const W = 820, H = 560;
+  const infra = (n) => !!n.infra;
+  const nodes = h.nodes.filter((n) => n.a).map((n) => ({ ...n }));
+  const byId = new Map(nodes.map((n) => [n.a, n]));
+  // per-node flow with the two hubs (for the hover card)
+  const f = {};
+  const bump = (a, k, v) => { (f[a] = f[a] || {})[k] = (f[a]?.[k] || 0) + v; };
+  for (const e of h.edges) {
+    if (e.to === h.hub) bump(e.from, "toHub", e.amt); if (e.from === h.hub) bump(e.to, "fromHub", e.amt);
+    if (e.to === h.feeder) bump(e.from, "toFeeder", e.amt); if (e.from === h.feeder) bump(e.to, "fromFeeder", e.amt);
+  }
+  nodes.forEach((n) => { n.flow = f[n.a] || {}; });
+  // collapse directed edges into unordered pairs for drawing (round-trips → one line, both amounts kept)
+  const pmap = new Map();
+  for (const e of h.edges) {
+    const [x, y] = e.from < e.to ? [e.from, e.to] : [e.to, e.from];
+    const key = x + "|" + y; let p = pmap.get(key);
+    if (!p) pmap.set(key, p = { a: x, b: y, ab: 0, ba: 0 });
+    if (e.from === x) p.ab += e.amt; else p.ba += e.amt;
+  }
+  const pairs = [...pmap.values()].filter((p) => byId.has(p.a) && byId.has(p.b)).map((p) => ({ ...p, amt: p.ab + p.ba, dir: p.ab && p.ba ? "bi" : p.ab ? "ab" : "ba" }));
+  // seed positions: hub center, feeder just left, others by hash ring
+  nodes.forEach((n, i) => {
+    if (n.role === "hub") { n.x = W / 2; n.y = H / 2; }
+    else if (n.role === "feeder") { n.x = W / 2 - 150; n.y = H / 2; }
+    else { const g = GHASH(n.a); n.x = W / 2 + Math.cos(g) * (120 + (i % 11) * 22); n.y = H / 2 + Math.sin(g * 1.7) * (90 + (i % 7) * 22); }
+    n.vx = 0; n.vy = 0;
+    const base = infra(n) ? 6 : n.role === "hub" ? 20 : 8;
+    n.r = infra(n) ? 6 : Math.max(9, Math.min(30, base + Math.sqrt((Math.max(n.capUsd || 0, n.bagUsd || 0)) / 700)));
+  });
+  const idx = byId, E = pairs;
+  for (let it = 0; it < 340; it++) {
+    const cool = 1 - it / 340;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) { const a = nodes[i], b = nodes[j]; let dx = a.x - b.x, dy = a.y - b.y; let d2 = dx * dx + dy * dy || 1; const d = Math.sqrt(d2); const fo = 3400 / d2; dx /= d; dy /= d; a.vx += dx * fo; a.vy += dy * fo; b.vx -= dx * fo; b.vy -= dy * fo; }
+    for (const e of E) { const a = idx.get(e.a), b = idx.get(e.b); let dx = b.x - a.x, dy = b.y - a.y; const d = Math.sqrt(dx * dx + dy * dy) || 1; const fo = (d - 70) * 0.035; dx /= d; dy /= d; a.vx += dx * fo; a.vy += dy * fo; b.vx -= dx * fo; b.vy -= dy * fo; }
+    for (const n of nodes) {
+      if (n.role === "hub") { n.x = W / 2; n.y = H / 2; continue; } // pin the Safe at center
+      n.vx += (W / 2 - n.x) * 0.005; n.vy += (H / 2 - n.y) * 0.005;
+      n.x += n.vx * cool * 0.5; n.y += n.vy * cool * 0.5; n.vx *= 0.82; n.vy *= 0.82;
+      n.x = Math.max(n.r + 6, Math.min(W - n.r - 6, n.x)); n.y = Math.max(n.r + 6, Math.min(H - n.r - 6, n.y));
+    }
+  }
+  return { nodes, pairs, byId, W, H, hub: h.hub, feeder: h.feeder };
+}
+export function HubMapPanel() {
+  const feed = useJson("hub.json");
+  const g = useMemo(() => (feed.data ? buildHubGraph(feed.data) : null), [feed.data]);
+  const [hover, setHover] = useState(null);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const wrap = useRef(null);
+  const clearT = useRef(null);
+  if (feed.err) return <div className="cstate err">could not load — {feed.err}</div>;
+  if (!g) return <div className="cstate">loading… (regenerates on the next daily run)</div>;
+  const d = feed.data, t = d.totals;
+  const tok = (v) => v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : Math.round(v);
+  const fill = (n) => n.infra ? "#39434f" : (HROLE[n.role]?.c || C.cyan);
+  const ring = (n) => { const gme = n.holds?.gme, booe = n.holds?.booe; return gme && booe ? "#fbbf24" : gme ? C.lime : booe ? "#a78bfa" : null; };
+  // interactive card: freeze it at the orb while hovered so the mouse can travel into it and click Zerion
+  const enter = (n) => { if (clearT.current) { clearTimeout(clearT.current); clearT.current = null; } setHover(n); };
+  const leave = () => { clearT.current = setTimeout(() => setHover(null), 160); };
+  const onMove = (e) => { if (hover) return; const b = wrap.current?.getBoundingClientRect(); if (b) setPos({ x: e.clientX - b.left, y: e.clientY - b.top }); };
+  const labelOf = (n) => n.role === "hub" ? d.hubLabel : n.infra ? n.infra : n.isContract ? (n.ctrLabel || "contract") : shortAddr(n.a);
+  return (
+    <div>
+      <p className="q">The <b style={{ color: C.warn }}>multisig at the center of the operation</b> — a Gnosis Safe (<code>{shortAddr(d.hub)}</code>) that sold the most into the top — and every wallet it moves pepecoin <b>directly</b> with, plus one hop past its <b style={{ color: C.amber }}>primary recipient</b> (<code>{shortAddr(d.feeder)}</code>), which is also the #1 wallet feeding the staged bag today. <b>Hover any orb for its live portfolio card; click to open its full history</b> — every address is checkable on Etherscan / Zerion.</p>
+      <div className="ov-kpis buyers" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
+        <div className="ov-kpi"><div className="k">Safe sent out</div><div className="v warn">{money(t.hubOutUsd)}</div><div className="n">{tok(t.hubOut)} pepecoin</div></div>
+        <div className="ov-kpi"><div className="k">Safe took in</div><div className="v">{money(t.hubInUsd)}</div><div className="n">{tok(t.hubIn)} pepecoin</div></div>
+        <div className="ov-kpi"><div className="k">wallets in the ring</div><div className="v">{fmtNum(t.nodes)}</div><div className="n">direct + one hop</div></div>
+        <div className="ov-kpi"><div className="k">flows drawn</div><div className="v">{fmtNum(t.edges)}</div><div className="n">Safe / feeder edges</div></div>
+      </div>
+      <div className="glegend">
+        <span><i className="gd" style={{ background: C.warn }} />the Safe (multisig)</span>
+        <span><i className="gd" style={{ background: C.amber }} />primary recipient</span>
+        <span><i className="gd" style={{ background: C.cyan }} />received from Safe/feeder</span>
+        <span><i className="gd" style={{ background: "#5fbf87" }} />sent into Safe/feeder</span>
+        <span><i className="gd" style={{ background: "#39434f" }} />pool / vault / infra</span>
+        <span><b style={{ color: C.lime }}>◦</b> also GME · <b style={{ color: "#a78bfa" }}>◦</b> BOOE</span>
+      </div>
+      <div ref={wrap} className="gwrap" onMouseMove={onMove}>
+        <svg viewBox={`0 0 ${g.W} ${g.H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+          <defs><marker id="hubarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill={C.dim} /></marker></defs>
+          {g.pairs.map((p, i) => { const a = g.byId.get(p.a), b = g.byId.get(p.b); const w = Math.max(0.8, Math.min(6, Math.sqrt(p.amt / 1e6) * 2.4));
+            const src = p.dir === "ba" ? b : a, dst = p.dir === "ba" ? a : b; // arrow points to the net receiver
+            return <line key={i} x1={src.x} y1={src.y} x2={dst.x} y2={dst.y} stroke={C.dim} strokeWidth={w} strokeOpacity={0.4}
+              markerEnd={p.dir !== "bi" ? "url(#hubarrow)" : undefined} strokeDasharray={p.dir === "bi" ? "5 4" : undefined} />; })}
+          {g.nodes.map((n) => { const rc = ring(n); return (
+            <g key={n.a} transform={`translate(${n.x},${n.y})`} style={{ cursor: "pointer" }}
+               onMouseEnter={() => enter(n)} onMouseLeave={leave}
+               onClick={() => openWin("wallet:" + n.a)}>
+              {n.role === "hub"
+                ? <rect x={-n.r} y={-n.r} width={n.r * 2} height={n.r * 2} rx={3} fill={fill(n)} stroke="#0c1510" strokeWidth={2} />
+                : n.isContract || n.infra
+                  ? <rect x={-n.r} y={-n.r} width={n.r * 2} height={n.r * 2} transform="rotate(45)" fill={fill(n)} fillOpacity={0.9} stroke={rc || "#0c1510"} strokeWidth={rc ? 2.2 : 1} />
+                  : <circle r={n.r} fill={fill(n)} fillOpacity={0.88} stroke={rc || "#0c1510"} strokeWidth={rc ? 2.4 : 1} />}
+              {(n.role === "hub" || n.role === "feeder") && <text y={n.r + 12} textAnchor="middle" fontSize={11} fill={fill(n)} fontWeight="700">{n.role === "hub" ? "SAFE" : "FEEDER"}</text>}
+            </g>); })}
+        </svg>
+        {hover && <div className="gcard gcard-live" style={{ left: Math.min(pos.x + 14, 540), top: Math.min(pos.y + 12, 360), pointerEvents: "auto" }}
+          onMouseEnter={() => enter(hover)} onMouseLeave={leave}>
+          <div className="gc-h" style={{ color: fill(hover) }}>{HROLE[hover.role]?.t || "wallet"}</div>
+          <div className="gc-a">{shortAddr(hover.a)}</div>
+          {hover.infra
+            ? <div className="gc-n">{hover.infra} — infrastructure ({hover.infraKind}), not a person</div>
+            : <>
+                {(hover.isContract) && <div className="gc-n" style={{ color: hover.ctrKind === "account" ? C.dim : C.amber }}>{hover.ctrKind === "account" ? "smart-account wallet (a person)" : "⚙ " + (hover.ctrLabel || "smart contract")}</div>}
+                <div className="gc-cap">{hover.capUsd != null ? money(hover.capUsd) : "—"}<span className="gc-sub"> total capital</span></div>
+                {hover.eth != null && <div className="gc-row"><span>ETH</span><span>{money(hover.ethUsd)}</span></div>}
+                <div className="gc-row"><span>PEPECOIN bag</span><span>{tok(hover.bag)} · {money(hover.bagUsd)}</span></div>
+                {hover.holds?.gme && <div className="gc-row" style={{ color: C.lime }}><span>GME</span><span>{money(hover.holds.gme.usd)}</span></div>}
+                {hover.holds?.booe && <div className="gc-row" style={{ color: "#a78bfa" }}><span>BOOE</span><span>{money(hover.holds.booe.usd)}</span></div>}
+              </>}
+          {(hover.flow?.fromHub || hover.flow?.toHub) && <div className="gc-x" style={{ color: C.dim }}>with the Safe: {hover.flow.fromHub ? "← " + tok(hover.flow.fromHub) : ""}{hover.flow.fromHub && hover.flow.toHub ? " · " : ""}{hover.flow.toHub ? "→ " + tok(hover.flow.toHub) : ""}</div>}
+          {(hover.flow?.fromFeeder || hover.flow?.toFeeder) && <div className="gc-x" style={{ color: C.dim }}>with the feeder: {hover.flow.fromFeeder ? "← " + tok(hover.flow.fromFeeder) : ""}{hover.flow.fromFeeder && hover.flow.toFeeder ? " · " : ""}{hover.flow.toFeeder ? "→ " + tok(hover.flow.toFeeder) : ""}</div>}
+          <div className="gc-links"><a href={`https://app.zerion.io/${hover.a}/overview`} target="_blank" rel="noreferrer">Zerion ↗</a><a href={`https://etherscan.io/address/${hover.a}`} target="_blank" rel="noreferrer">Etherscan ↗</a></div>
+        </div>}
+      </div>
+      <p className="foot">Reconstructed from public transfers (flows, exact) + live Blockscout balances (each card). The <b style={{ color: C.warn }}>Safe</b> and its <b style={{ color: C.amber }}>feeder</b> cycle millions of pepecoin back and forth (dashed = two-way) and fan it into a tight set of private wallets, a DeFi vault and the pool — the plumbing of one operation. A round-trip between two wallets isn't a market trade; it's a wallet moving its own bag. Signal, not proof — open any orb and verify it yourself. Not financial advice.</p>
+    </div>
+  );
+}
 function SharedBags({ cohort }) {
   const rf = useJson("radar.json");
   const cf = useJson("common-tokens.json");
@@ -1090,7 +1221,7 @@ export function WalletDetail({ addr }) {
   );
 }
 
-const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel, map: CohortMapPanel, op: OperationPanel };
+const PANELS = { overview: OverviewPanel, buyers: BuyersPanel, about: AboutPanel, smart: SmartMoneyPanel, rally: RallyPanel, watch: InsiderWatchPanel, map: CohortMapPanel, op: OperationPanel, hub: HubMapPanel };
 export function winContent(id) {
   if (id && id.startsWith("wallet:")) return <WalletDetail addr={id.slice(7)} />;
   const P = PANELS[id];

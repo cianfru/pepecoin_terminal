@@ -248,6 +248,19 @@ heavily-speculated coin.
       hover card, click → wallet drill-down (Zerion/Etherscan). **⭐ THE NUMBERS: accumulated ~$508k pre-top → distributed
       ~$2.16M into the top (4.26× their cost) → re-staging ~$731k now.** ⚠ OWNER CORRECTED my "only $189k of markup buying is
       small" framing — on a thin float $189k is plenty to spike price + bait retail; do NOT downplay operator markup capital again.
+    - **✅ "MULTISIG MAP" — the hub, drawn (owner: "map the multisig and its direct recipient, put it on the site, full visibility
+      with a Zerion card on hover").** After the Kraken cleanup, the cohort's #1 top-seller is a **Gnosis Safe** (`0x2f8742…`) that
+      cycles millions of pepecoin back and forth with its **primary recipient `0x7d544a853d`** — which is ALSO the #1 wallet feeding
+      the current staged bag. `scripts/build-hub.mjs` centers on the Safe, pulls its DIRECT counterparties + one hop past the feeder,
+      reconstructs the flows locally (exact) and enriches each node with live capital (reuses `walletCapital` from
+      build-wallet-capital) → `public/hub.json`. Panel **`HubMapPanel`** (🔐, window `hub`, "Multisig Map"): a pinned-center force
+      graph — Safe (gold square) + feeder (amber) + recipients/senders/onward orbs, infra (pool/vault/burn) as grey diamonds,
+      dashed = two-way round-trips, arrows = net direction, GME/BOOE rings. **Hover = an interactive Zerion-style portfolio card**
+      (capital, ETH, pepecoin bag, GME/BOOE, flow with the Safe/feeder) with WORKING **Zerion ↗ / Etherscan ↗** links (card is
+      `pointer-events:auto` + a 160ms hover-persistence timer + frozen position so the mouse can travel into it); click any orb →
+      full wallet history. **⭐ THE FIND: 0x2f8742 (Safe) ⇄ 0x7d544a853d cycle ~10M+ pepecoin both ways, plus round-trips with
+      0xa6b816 (a basedAIFarm contract) + 0x40359b38 + 0x6e82a84 + pool draws** — the plumbing of one operation, every hop
+      checkable. A round-trip between two wallets is a bag being moved, NOT a market trade — said on the card. Signal, not proof.
     - **✅ COMMON HOLDINGS / SHARED BAGS — `build-common-tokens.mjs` (owner: "are they buying anything else in common?").**
       Aggregates every cohort wallet's full ERC-20 holdings (Blockscout) → ranks tokens by how many cohort wallets hold a
       >$150 priced position; excludes pepe/GME/BOOE + majors/stables; caps scam prices at $25k. Rendered as a "shared bags"

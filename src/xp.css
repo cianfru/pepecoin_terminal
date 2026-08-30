@@ -217,3 +217,7 @@ body {
 .gcard .gc-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11.5px; color: #bfe6ce; margin-top: 3px; }
 .gcard .gc-x { font-size: 10.5px; margin-top: 5px; padding-top: 5px; border-top: 1px solid #17251b; }
 .gcard .gc-n { color: #6f9a80; font-size: 10px; margin-top: 7px; line-height: 1.4; }
+.gcard .gc-links { display: flex; gap: 10px; margin-top: 8px; padding-top: 7px; border-top: 1px solid #17251b; }
+.gcard .gc-links a { font-size: 11px; color: var(--pepe); text-decoration: none; font-weight: 600; }
+.gcard .gc-links a:hover { text-decoration: underline; }
+.gcard-live { pointer-events: auto; }
