@@ -1,1 +1,1 @@
-{"updated":"2026-09-20","cohort":75,"thresholds":{"maxHolders":20000,"maxMcap":15000000,"minCohort":3},"radar":[]}
+{"updated":"2026-09-21","cohort":81,"thresholds":{"maxHolders":20000,"maxMcap":15000000,"minCohort":3},"radar":[{"sym":"PNKSTR","name":"PunkStrategy","addr":"0xc50673edb3a7b94e8cad8a7d4e0cd68864e33edf","n":3,"usd":31121,"totalHolders":9577,"mcap":8542334,"lastBuy":"2026-09-21","daysAgo":0,"recent":true}]}
