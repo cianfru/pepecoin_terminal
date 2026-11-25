@@ -1,1 +1,1 @@
-{"updated":"2026-11-24","cohort":91,"thresholds":{"maxHolders":20000,"maxMcap":15000000,"minCohort":3},"radar":[]}
+{"updated":"2026-11-25","cohort":91,"thresholds":{"maxHolders":20000,"maxMcap":15000000,"minCohort":3},"radar":[{"sym":"UPEG","name":"Unipeg","addr":"0x44b28991b167582f18ba0259e0173176ca125505","n":3,"usd":2883,"totalHolders":5174,"mcap":555343,"lastBuy":"2026-11-21","daysAgo":5,"recent":true}]}
